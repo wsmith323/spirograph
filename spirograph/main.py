@@ -5,7 +5,6 @@ from typing import Dict, List, Tuple
 import math
 
 NUMBER_OF_STEPS = 3000
-BATCH_UPDATE_SIZE = 50
 SCREEN_SIZE = 1000
 
 
@@ -108,14 +107,18 @@ class SpiroCurve:
         self,
         turtle_obj: turtle.Turtle,
         number_of_steps: int,
+        drawing_speed: int,
     ) -> None:
         """Draw the spirograph curve using a turtle object.
 
         Args:
             turtle_obj: The turtle used to draw the curve.
             number_of_steps: Number of steps to use for sampling the curve.
+            drawing_speed: Logical drawing speed chosen by the user (1 slowest, 10 fastest).
         """
         screen = turtle_obj.getscreen()
+        batch_size = compute_batch_size(drawing_speed)
+
         points = self.generate_points(number_of_steps)
 
         turtle_obj.penup()
@@ -131,7 +134,7 @@ class SpiroCurve:
 
         for index, (x_coordinate, y_coordinate) in enumerate(points[1:], start=1):
             turtle_obj.goto(x_coordinate, y_coordinate)
-            if index % BATCH_UPDATE_SIZE == 0:
+            if index % batch_size == 0:
                 screen.update()
 
         screen.update()
@@ -221,6 +224,53 @@ def prompt_curve_type() -> SpiroType:
         if raw_value in ('epi', 'e'):
             return SpiroType.EPI
         print('Please enter "hypo" or "epi".')
+
+
+def prompt_drawing_speed(current_speed: int) -> int:
+    """Prompt the user for a turtle drawing speed between 1 and 10.
+
+    Args:
+        current_speed: The current drawing speed, used as the default.
+
+    Returns:
+        A validated drawing speed between 1 (slow) and 10 (fast).
+    """
+    label = 'Drawing Speed [1 (slow) - 10 (fast)]'
+
+    while True:
+        raw_value = input(f'{label} [{current_speed}]: ').strip()
+        if raw_value == '':
+            return current_speed
+
+        try:
+            parsed_value = int(raw_value)
+        except ValueError:
+            print('Please enter a valid integer between 1 and 10.')
+            continue
+
+        if not 1 <= parsed_value <= 10:
+            print('Please enter a value between 1 and 10.')
+            continue
+
+        return parsed_value
+
+
+def compute_batch_size(drawing_speed: int) -> int:
+    """Compute the batch size for screen updates based on drawing speed.
+
+    Args:
+        drawing_speed: Logical drawing speed from 1 (slowest) to 10 (fastest).
+
+    Returns:
+        The number of points to draw between screen updates.
+    """
+    # Clamp just in case.
+    if drawing_speed <= 1:
+        return 1
+    if drawing_speed >= 10:
+        return 2**9  # 512
+
+    return 2 ** (drawing_speed - 1)
 
 
 def ask_yes_no(prompt_text: str) -> bool:
@@ -332,14 +382,14 @@ def build_presets() -> Dict[str, SpiroCurve]:
     return presets
 
 
-def choose_preset_or_custom(presets: Dict[str, SpiroCurve]) -> SpiroCurve:
+def choose_preset_or_custom(presets: Dict[str, SpiroCurve]) -> SpiroCurve | None:
     """Allow the user to choose a preset or enter custom values.
 
     Args:
         presets: Mapping of preset names to SpiroCurve instances.
 
     Returns:
-        A SpiroCurve instance chosen or defined by the user.
+        A SpiroCurve instance chosen or defined by the user, or None if no valid choice was made.
     """
     preset_items = list(presets.items())
 
@@ -350,27 +400,31 @@ def choose_preset_or_custom(presets: Dict[str, SpiroCurve]) -> SpiroCurve:
     custom_option_index = len(preset_items) + 1
     print(f'{custom_option_index}. Custom values')
 
-    while True:
-        raw_choice = input(
-            f'Select an option [1-{custom_option_index}]: ',
-        ).strip()
+    raw_choice = input(
+        f'Select an option [1-{custom_option_index}] (empty to exit): ',
+    ).strip()
 
-        try:
-            choice_index = int(raw_choice)
-        except ValueError:
-            print('Please enter a valid integer choice.')
-            continue
+    if raw_choice == '':
+        print('No selection entered. Exiting.')
+        return None
 
-        if 1 <= choice_index <= len(preset_items):
-            selected_name, selected_curve = preset_items[choice_index - 1]
-            print(f'You selected preset: {selected_name}')
-            return selected_curve
+    try:
+        choice_index = int(raw_choice)
+    except ValueError:
+        print('No valid preset selected. Exiting.')
+        return None
 
-        if choice_index == custom_option_index:
-            print('Entering custom values.')
-            return create_custom_curve()
+    if 1 <= choice_index <= len(preset_items):
+        selected_name, selected_curve = preset_items[choice_index - 1]
+        print(f'You selected preset: {selected_name}')
+        return selected_curve
 
-        print(f'Please enter a number between 1 and {custom_option_index}.')
+    if choice_index == custom_option_index:
+        print('Entering custom values.')
+        return create_custom_curve()
+
+    print('No valid preset selected. Exiting.')
+    return None
 
 
 def create_custom_curve() -> SpiroCurve:
@@ -419,30 +473,25 @@ def main() -> None:
     """Entry point for the spirograph simulator."""
     presets = build_presets()
     screen, turtle_obj = setup_screen()
+    drawing_speed = 1
 
-    try:
-        while True:
-            spiro_curve = choose_preset_or_custom(presets)
-            turtle_obj.clear()
-            turtle_obj.penup()
-            turtle_obj.goto(0.0, 0.0)
-            turtle_obj.pendown()
+    while True:
+        spiro_curve = choose_preset_or_custom(presets)
+        if spiro_curve is None:
+            break
 
-            spiro_curve.draw(turtle_obj, NUMBER_OF_STEPS)
+        drawing_speed = prompt_drawing_speed(drawing_speed)
 
-            if not ask_yes_no('Draw another spirograph? (y/n): '):
-                break
+        turtle_obj.clear()
+        turtle_obj.penup()
+        turtle_obj.goto(0.0, 0.0)
+        turtle_obj.pendown()
 
-        print('Done. Click on the window to close it.')
-        screen.update()
-        screen.exitonclick()
-    finally:
-        # In some environments, exitonclick will handle closure;
-        # this is mainly to avoid orphaned windows on error.
-        try:
-            turtle.bye()
-        except turtle.Terminator:
-            pass
+        spiro_curve.draw(turtle_obj, NUMBER_OF_STEPS, drawing_speed)
+
+    print('Done.')
+    screen.update()
+    screen.bye()
 
 
 if __name__ == '__main__':
