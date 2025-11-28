@@ -11,8 +11,8 @@ SCREEN_SIZE = 1000
 class SpiroType(Enum):
     """Enum representing the type of spirograph curve."""
 
-    HYPO = 'hypo'
-    EPI = 'epi'
+    HYPOTROCHOID = "hypotrochoid"
+    EPITROCHOID = "epitrochoid"
 
 
 class SpiroCurve:
@@ -72,32 +72,32 @@ class SpiroCurve:
         for step_index in range(number_of_steps + 1):
             t_value = (step_index / number_of_steps) * period
 
-            if self.curve_type is SpiroType.HYPO:
-                radius_difference = self.fixed_circle_radius - self.rolling_circle_radius
+            if self.curve_type is SpiroType.HYPOTROCHOID:
+                radius_difference = (
+                    self.fixed_circle_radius - self.rolling_circle_radius
+                )
                 primary_angle = t_value
-                secondary_angle = (radius_difference / self.rolling_circle_radius) * t_value
+                secondary_angle = (
+                    radius_difference / self.rolling_circle_radius
+                ) * t_value
 
-                x_coordinate = (
-                    radius_difference * math.cos(primary_angle)
-                    + self.pen_offset * math.cos(secondary_angle)
-                )
-                y_coordinate = (
-                    radius_difference * math.sin(primary_angle)
-                    - self.pen_offset * math.sin(secondary_angle)
-                )
+                x_coordinate = radius_difference * math.cos(
+                    primary_angle
+                ) + self.pen_offset * math.cos(secondary_angle)
+                y_coordinate = radius_difference * math.sin(
+                    primary_angle
+                ) - self.pen_offset * math.sin(secondary_angle)
             else:
                 radius_sum = self.fixed_circle_radius + self.rolling_circle_radius
                 primary_angle = t_value
                 secondary_angle = (radius_sum / self.rolling_circle_radius) * t_value
 
-                x_coordinate = (
-                    radius_sum * math.cos(primary_angle)
-                    - self.pen_offset * math.cos(secondary_angle)
-                )
-                y_coordinate = (
-                    radius_sum * math.sin(primary_angle)
-                    - self.pen_offset * math.sin(secondary_angle)
-                )
+                x_coordinate = radius_sum * math.cos(
+                    primary_angle
+                ) - self.pen_offset * math.cos(secondary_angle)
+                y_coordinate = radius_sum * math.sin(
+                    primary_angle
+                ) - self.pen_offset * math.sin(secondary_angle)
 
             points.append((x_coordinate, y_coordinate))
 
@@ -149,15 +149,15 @@ def make_prompt_label(identifier: str) -> str:
     Returns:
         A human-readable label derived from the identifier.
     """
-    words = identifier.split('_')
-    label = ' '.join(word.capitalize() for word in words)
+    words = identifier.split("_")
+    label = " ".join(word.capitalize() for word in words)
     return label
 
 
 def prompt_positive_int(
     identifier: str,
     default_value: int | None = None,
-) -> int:
+) -> int:  # type: ignore
     """Prompt the user for a positive integer based on an identifier.
 
     Args:
@@ -171,20 +171,20 @@ def prompt_positive_int(
 
     while True:
         if default_value is not None:
-            raw_value = input(f'{label} [{default_value}]: ').strip()
-            if raw_value == '':
+            raw_value = input(f"{label} [{default_value}]: ").strip()
+            if raw_value == "":
                 return default_value
         else:
-            raw_value = input(f'{label}: ').strip()
+            raw_value = input(f"{label}: ").strip()
 
         try:
             parsed_value = int(raw_value)
         except ValueError:
-            print('Please enter a valid integer.')
+            print("Please enter a valid integer.")
             continue
 
         if parsed_value <= 0:
-            print('Please enter a positive integer.')
+            print("Please enter a positive integer.")
             continue
 
         return parsed_value
@@ -201,32 +201,57 @@ def prompt_string_with_default(identifier: str, default_value: str) -> str:
         The entered string, or the default when input is empty.
     """
     label = make_prompt_label(identifier)
-    raw_value = input(f'{label} [{default_value}]: ').strip()
-    if raw_value == '':
+    raw_value = input(f"{label} [{default_value}]: ").strip()
+    if raw_value == "":
         return default_value
     return raw_value
 
 
-def prompt_curve_type() -> SpiroType:
+def prompt_curve_type(default_type: SpiroType | None = None) -> SpiroType:  # type: ignore
     """Prompt the user to select a curve type.
+
+    Args:
+        default_type: Optional default curve type returned on empty input.
 
     Returns:
         The selected SpiroType.
-
-    Raises:
-        RuntimeError: If the input loop somehow exits unexpectedly.
     """
-    label = make_prompt_label('curve_type')
+    label = make_prompt_label("curve_type")
+
     while True:
-        raw_value = input(f'{label} [hypo/epi]: ').strip().lower()
-        if raw_value in ('hypo', 'h'):
-            return SpiroType.HYPO
-        if raw_value in ('epi', 'e'):
-            return SpiroType.EPI
-        print('Please enter "hypo" or "epi".')
+        print(f"{label}:")
+        print("  1. Hypotrochoid (rolling inside fixed circle)")
+        print("  2. Epitrochoid (rolling outside fixed circle)")
+
+        if default_type is not None:
+            default_index = 1 if default_type is SpiroType.HYPOTROCHOID else 2
+        else:
+            default_index = 1
+
+        raw_value = input(
+            f"Select {label} [1-2] [{default_index}]: ",
+        ).strip()
+
+        if raw_value == "":
+            if default_type is not None:
+                return default_type
+            return SpiroType.HYPOTROCHOID
+
+        try:
+            choice_index = int(raw_value)
+        except ValueError:
+            print("Please enter 1 or 2.")
+            continue
+
+        if choice_index == 1:
+            return SpiroType.HYPOTROCHOID
+        if choice_index == 2:
+            return SpiroType.EPITROCHOID
+
+        print("Please enter 1 or 2.")
 
 
-def prompt_drawing_speed(current_speed: int) -> int:
+def prompt_drawing_speed(current_speed: int) -> int:  # type: ignore
     """Prompt the user for a turtle drawing speed between 1 and 10.
 
     Args:
@@ -235,21 +260,21 @@ def prompt_drawing_speed(current_speed: int) -> int:
     Returns:
         A validated drawing speed between 1 (slow) and 10 (fast).
     """
-    label = 'Drawing Speed [1 (slow) - 10 (fast)]'
+    label = "Drawing Speed [1 (slow) - 10 (fast)]"
 
     while True:
-        raw_value = input(f'{label} [{current_speed}]: ').strip()
-        if raw_value == '':
+        raw_value = input(f"{label} [{current_speed}]: ").strip()
+        if raw_value == "":
             return current_speed
 
         try:
             parsed_value = int(raw_value)
         except ValueError:
-            print('Please enter a valid integer between 1 and 10.')
+            print("Please enter a valid integer between 1 and 10.")
             continue
 
         if not 1 <= parsed_value <= 10:
-            print('Please enter a value between 1 and 10.')
+            print("Please enter a value between 1 and 10.")
             continue
 
         return parsed_value
@@ -284,9 +309,9 @@ def ask_yes_no(prompt_text: str) -> bool:
     """
     while True:
         raw_value = input(prompt_text).strip().lower()
-        if raw_value in ('y', 'yes'):
+        if raw_value in ("y", "yes"):
             return True
-        if raw_value in ('n', 'no'):
+        if raw_value in ("n", "no"):
             return False
         print('Please enter "y" or "n".')
 
@@ -298,147 +323,179 @@ def build_presets() -> Dict[str, SpiroCurve]:
         A mapping of preset names to SpiroCurve instances.
     """
     presets: Dict[str, SpiroCurve] = {
-        'five_petal_flower': SpiroCurve(
+        "five_petal_flower": SpiroCurve(
             125,
             75,
             50,
-            SpiroType.HYPO,
-            'blue',
+            SpiroType.HYPOTROCHOID,
+            "blue",
             1,
         ),
-        'tight_starburst': SpiroCurve(
+        "tight_starburst": SpiroCurve(
             105,
             30,
             60,
-            SpiroType.EPI,
-            'red',
+            SpiroType.EPITROCHOID,
+            "red",
             1,
         ),
-        'gear_ring': SpiroCurve(
+        "gear_ring": SpiroCurve(
             180,
             45,
             20,
-            SpiroType.HYPO,
-            'green',
+            SpiroType.EPITROCHOID,
+            "green",
             1,
         ),
-        'inner_rosette': SpiroCurve(
+        "inner_rosette": SpiroCurve(
             150,
             60,
             30,
-            SpiroType.HYPO,
-            'purple',
+            SpiroType.HYPOTROCHOID,
+            "purple",
             1,
         ),
-        'outer_loop_bloom': SpiroCurve(
+        "outer_loop_bloom": SpiroCurve(
             160,
             40,
             80,
-            SpiroType.EPI,
-            'orange',
+            SpiroType.EPITROCHOID,
+            "orange",
             1,
         ),
-        'nested_loops': SpiroCurve(
+        "nested_loops": SpiroCurve(
             200,
             70,
             40,
-            SpiroType.HYPO,
-            'brown',
+            SpiroType.HYPOTROCHOID,
+            "brown",
             1,
         ),
-        'spiky_wheel': SpiroCurve(
+        "spiky_wheel": SpiroCurve(
             170,
             30,
             90,
-            SpiroType.EPI,
-            'darkblue',
+            SpiroType.EPITROCHOID,
+            "darkblue",
             1,
         ),
-        'wide_rosette': SpiroCurve(
+        "wide_rosette": SpiroCurve(
             220,
             90,
             30,
-            SpiroType.HYPO,
-            'magenta',
+            SpiroType.HYPOTROCHOID,
+            "magenta",
             1,
         ),
-        'compact_flower': SpiroCurve(
+        "compact_flower": SpiroCurve(
             120,
             50,
             60,
-            SpiroType.EPI,
-            'cyan',
+            SpiroType.EPITROCHOID,
+            "cyan",
             1,
         ),
-        'thin_rings': SpiroCurve(
+        "thin_rings": SpiroCurve(
             210,
             35,
             15,
-            SpiroType.HYPO,
-            'black',
+            SpiroType.HYPOTROCHOID,
+            "black",
             1,
         ),
     }
     return presets
 
 
-def choose_preset_or_custom(presets: Dict[str, SpiroCurve]) -> SpiroCurve | None:
+def choose_preset_or_custom(
+    presets: Dict[str, SpiroCurve],
+    last_custom_curve: SpiroCurve | None,
+) -> tuple[SpiroCurve | None, SpiroCurve | None]:
     """Allow the user to choose a preset or enter custom values.
 
     Args:
         presets: Mapping of preset names to SpiroCurve instances.
+        last_custom_curve: Last custom curve used for providing default values, or None.
 
     Returns:
-        A SpiroCurve instance chosen or defined by the user, or None if no valid choice was made.
+        A tuple of (selected_curve or None, updated_last_custom_curve).
     """
     preset_items = list(presets.items())
 
-    print('\nAvailable presets:')
+    print("\nAvailable presets:")
     for index, (name, _) in enumerate(preset_items, start=1):
-        print(f'{index}. {name}')
+        print(f"{index}. {name}")
 
     custom_option_index = len(preset_items) + 1
-    print(f'{custom_option_index}. Custom values')
+    print(f"\n{custom_option_index}. Custom values")
 
     raw_choice = input(
-        f'Select an option [1-{custom_option_index}] (empty to exit): ',
+        f"\nSelect an option [1-{custom_option_index}] (empty to exit): ",
     ).strip()
 
-    if raw_choice == '':
-        print('No selection entered. Exiting.')
-        return None
+    if raw_choice == "":
+        print("No selection entered. Exiting.")
+        return None, last_custom_curve
 
     try:
         choice_index = int(raw_choice)
     except ValueError:
-        print('No valid preset selected. Exiting.')
-        return None
+        print("No valid preset selected. Exiting.")
+        return None, last_custom_curve
 
     if 1 <= choice_index <= len(preset_items):
         selected_name, selected_curve = preset_items[choice_index - 1]
-        print(f'You selected preset: {selected_name}')
-        return selected_curve
+        print(f"You selected preset: {selected_name}")
+        return selected_curve, last_custom_curve
 
     if choice_index == custom_option_index:
-        print('Entering custom values.')
-        return create_custom_curve()
+        print("Entering custom values.")
+        new_custom_curve = create_custom_curve(last_custom_curve)
+        return new_custom_curve, new_custom_curve
 
-    print('No valid preset selected. Exiting.')
-    return None
+    print("No valid preset selected. Exiting.")
+    return None, last_custom_curve
 
 
-def create_custom_curve() -> SpiroCurve:
+def create_custom_curve(previous_curve: SpiroCurve | None) -> SpiroCurve:
     """Prompt the user for all curve parameters and build a SpiroCurve.
+
+    Args:
+        previous_curve: Last custom curve used for providing default values, or None.
 
     Returns:
         A new SpiroCurve instance created from user input.
     """
-    fixed_circle_radius = prompt_positive_int('fixed_circle_radius')
-    rolling_circle_radius = prompt_positive_int('rolling_circle_radius')
-    pen_offset = prompt_positive_int('pen_offset')
-    curve_type = prompt_curve_type()
-    color = prompt_string_with_default('color', 'black')
-    line_width = prompt_positive_int('line_width', default_value=1)
+    if previous_curve is not None:
+        fixed_circle_radius_default = previous_curve.fixed_circle_radius
+        rolling_circle_radius_default = previous_curve.rolling_circle_radius
+        pen_offset_default = previous_curve.pen_offset
+        curve_type_default = previous_curve.curve_type
+        color_default = previous_curve.color
+        line_width_default = previous_curve.line_width
+    else:
+        fixed_circle_radius_default = None
+        rolling_circle_radius_default = None
+        pen_offset_default = None
+        curve_type_default = None
+        color_default = "black"
+        line_width_default = 1
+
+    fixed_circle_radius = prompt_positive_int(
+        "fixed_circle_radius",
+        default_value=fixed_circle_radius_default,
+    )
+    rolling_circle_radius = prompt_positive_int(
+        "rolling_circle_radius",
+        default_value=rolling_circle_radius_default,
+    )
+    pen_offset = prompt_positive_int(
+        "pen_offset",
+        default_value=pen_offset_default,
+    )
+    curve_type = prompt_curve_type(curve_type_default)
+    color = prompt_string_with_default("color", color_default)
+    line_width = prompt_positive_int("line_width", default_value=line_width_default)
 
     return SpiroCurve(
         fixed_circle_radius,
@@ -450,7 +507,7 @@ def create_custom_curve() -> SpiroCurve:
     )
 
 
-def setup_screen() -> tuple[turtle.Screen, turtle.Turtle]:
+def setup_screen() -> tuple[turtle._Screen, turtle.Turtle]:
     """Initialize the turtle screen and drawing turtle.
 
     Returns:
@@ -458,8 +515,8 @@ def setup_screen() -> tuple[turtle.Screen, turtle.Turtle]:
     """
     screen = turtle.Screen()
     screen.setup(width=SCREEN_SIZE, height=SCREEN_SIZE)
-    screen.title('Spirograph Simulator')
-    screen.bgcolor('white')
+    screen.title("Spirograph Simulator")
+    screen.bgcolor("white")
     screen.tracer(0, 0)
 
     turtle_obj = turtle.Turtle()
@@ -474,13 +531,26 @@ def main() -> None:
     presets = build_presets()
     screen, turtle_obj = setup_screen()
     drawing_speed = 1
+    last_custom_curve: SpiroCurve | None = None
 
     while True:
-        spiro_curve = choose_preset_or_custom(presets)
+        spiro_curve, last_custom_curve = choose_preset_or_custom(
+            presets,
+            last_custom_curve,
+        )
         if spiro_curve is None:
             break
 
         drawing_speed = prompt_drawing_speed(drawing_speed)
+
+        print("\nSelected parameters:")
+        print(f"  Fixed Circle Radius: {spiro_curve.fixed_circle_radius}")
+        print(f"  Rolling Circle Radius: {spiro_curve.rolling_circle_radius}")
+        print(f"  Pen Offset: {spiro_curve.pen_offset}")
+        print(f"  Curve Type: {spiro_curve.curve_type.value}")
+        print(f"  Color: {spiro_curve.color}")
+        print(f"  Line Width: {spiro_curve.line_width}")
+        print(f"  Drawing Speed: {drawing_speed}")
 
         turtle_obj.clear()
         turtle_obj.penup()
@@ -489,10 +559,10 @@ def main() -> None:
 
         spiro_curve.draw(turtle_obj, NUMBER_OF_STEPS, drawing_speed)
 
-    print('Done.')
+    print("Done.")
     screen.update()
     screen.bye()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
