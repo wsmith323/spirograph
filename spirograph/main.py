@@ -325,18 +325,6 @@ def create_custom_curve(previous_curve: SpiroCurve | None) -> SpiroCurve:
     Returns:
         A new SpiroCurve instance created from user input.
     """
-    print("\nConfigure your spirograph curve.")
-    print(
-        "  Fixed circle radius (R) controls overall size; try 100-300 for a 1000x1000 window."
-    )
-    print(
-        "  Rolling circle radius (r) controls lobes and detail; try 20-150 and keep r < R."
-    )
-    print("  Pen offset (d) controls spikiness:")
-    print("    - d << r: very soft, low-amplitude petals")
-    print("    - d ≈ r: classic spiky flower")
-    print("    - d > r: complex, loopy patterns\n")
-
     if previous_curve is not None:
         fixed_circle_radius_default = previous_curve.fixed_circle_radius
         rolling_circle_radius_default = previous_curve.rolling_circle_radius
@@ -352,17 +340,17 @@ def create_custom_curve(previous_curve: SpiroCurve | None) -> SpiroCurve:
         color_default = "black"
         line_width_default = 1
 
-    print("Fixed circle radius (R): overall size of the pattern.")
+    guide_before_fixed_radius(previous_curve)
     fixed_circle_radius = prompt_positive_int(
         "fixed_circle_radius",
         default_value=fixed_circle_radius_default,
     )
-    print("Rolling circle radius (r): smaller r ⇒ more lobes and finer detail.")
+    guide_before_rolling_radius(fixed_circle_radius, previous_curve)
     rolling_circle_radius = prompt_positive_int(
         "rolling_circle_radius",
         default_value=rolling_circle_radius_default,
     )
-    print("Pen offset (d): distance from the rolling circle center to the pen.")
+    guide_before_pen_offset(fixed_circle_radius, rolling_circle_radius, previous_curve)
     pen_offset = prompt_positive_int(
         "pen_offset",
         default_value=pen_offset_default,
@@ -381,7 +369,6 @@ def create_custom_curve(previous_curve: SpiroCurve | None) -> SpiroCurve:
     )
 
 
-# Helper to describe the curve's properties
 def describe_curve(curve: SpiroCurve) -> None:
     """Print guidance about how the current parameters shape the curve.
 
@@ -428,6 +415,143 @@ def describe_curve(curve: SpiroCurve) -> None:
     print(f"  gcd(R, r): {gcd_value} → approx petals: {approx_petals}")
     print(f"  Rotations of rolling circle until closure: ~{rotations_to_close}")
     print(f"  Curve type: {curve_kind}\n")
+
+
+# Guidance helpers for step-by-step interactive input
+def guide_before_fixed_radius(previous_curve: SpiroCurve | None) -> None:
+    """Provide brief guidance before entering the fixed circle radius (R).
+
+    Args:
+        previous_curve: The last curve used, if any.
+    """
+    print("\nFixed circle radius (R):")
+    if previous_curve is None:
+        print(
+            "  R controls overall size. Larger R fills more of the window; "
+            "smaller R keeps the pattern more compact."
+        )
+        print(
+            "  This parameter scales the entire figure uniformly. "
+            "Try values in the 100–300 range for a typical window."
+        )
+        return
+
+    prev_R = previous_curve.fixed_circle_radius
+
+    print(f"  Previous run: R = {prev_R}.")
+    print(
+        "  Using the default value will produce a curve with a similar overall size "
+        "to the last run (assuming other parameters are comparable)."
+    )
+    print(
+        f"  Choosing R larger than {prev_R} will scale the pattern up uniformly; "
+        f"choosing R smaller will scale it down uniformly."
+    )
+
+
+def guide_before_rolling_radius(
+    fixed_circle_radius: int,
+    previous_curve: SpiroCurve | None,
+) -> None:
+    """Provide brief guidance before entering the rolling circle radius (r).
+
+    Args:
+        fixed_circle_radius: The selected fixed circle radius R for this run.
+        previous_curve: The last curve used, if any.
+    """
+    R = fixed_circle_radius
+    print("\nRolling circle radius (r):")
+    print(f"  Current R = {R}.")
+
+    if previous_curve is None:
+        print(
+            "  r must be smaller than R for hypotrochoids. "
+            "Smaller r (relative to R) gives more lobes and a denser pattern; "
+            "larger r (but still < R) gives fewer, larger lobes."
+        )
+        print(
+            "  Ratios R/r that are non-integers tend to look more intricate and dense than "
+            "simple integer ratios."
+        )
+        return
+
+    prev_r = previous_curve.rolling_circle_radius
+
+    ratio_if_unchanged = R / prev_r
+    gcd_if_unchanged = math.gcd(R, prev_r)
+    petals_if_unchanged = R // gcd_if_unchanged
+    rotations_if_unchanged = prev_r // gcd_if_unchanged
+
+    print(
+        f"  Default r from last run is {prev_r}. With current R, R/r would be ≈ {ratio_if_unchanged:.3f}."
+    )
+    print(
+        f"  That would give roughly {petals_if_unchanged} lobes and close after about "
+        f"{rotations_if_unchanged} rotations of the rolling circle."
+    )
+
+    if abs(ratio_if_unchanged - round(ratio_if_unchanged)) < 1e-6:
+        print("  Integer-like R/r → clean symmetry, less visual 'noise'.")
+    else:
+        print("  Non-integer R/r → more intricate, visually denser pattern.")
+
+    print(
+        f"  Choosing r smaller than {prev_r} (with this R) increases R/r → more lobes and a denser figure."
+    )
+    print(
+        f"  Choosing r larger than {prev_r} (but still < R) decreases R/r → fewer lobes and a simpler figure."
+    )
+
+
+def guide_before_pen_offset(
+    fixed_circle_radius: int,
+    rolling_circle_radius: int,
+    previous_curve: SpiroCurve | None,
+) -> None:
+    """Provide brief guidance before entering the pen offset (d).
+
+    Args:
+        fixed_circle_radius: The selected fixed circle radius R for this run.
+        rolling_circle_radius: The selected rolling circle radius r for this run.
+        previous_curve: The last curve used, if any.
+    """
+    R = fixed_circle_radius
+    r = rolling_circle_radius
+
+    print("\nPen offset (d):")
+    print(f"  Current R = {R}, r = {r}.")
+
+    if previous_curve is None:
+        print(
+            "  The key quantity is d/r: small d/r → softer, low-amplitude petals; "
+            "d/r around 1 → classic spiky look; d/r > 1 → loops and more chaotic detail."
+        )
+        return
+
+    prev_d = previous_curve.pen_offset
+
+    offset_factor_if_unchanged = prev_d / r
+
+    print(
+        f"  Default d from last run is {prev_d}. With current r, d/r would be ≈ {offset_factor_if_unchanged:.3f}."
+    )
+
+    if offset_factor_if_unchanged < 0.3:
+        desc = "very soft, low-amplitude petals"
+    elif offset_factor_if_unchanged < 0.9:
+        desc = "softer petals with less extreme spikes"
+    elif offset_factor_if_unchanged < 1.1:
+        desc = "a classic spiky outline"
+    elif offset_factor_if_unchanged < 1.6:
+        desc = "complex loops and self-intersections"
+    else:
+        desc = "very loopy, chaotic-looking structures"
+
+    print(f"  That setting would give {desc}.")
+    print(
+        f"  Choosing d smaller than {prev_d} will generally soften the pattern (lower d/r); "
+        f"choosing d larger than {prev_d} will exaggerate spikes/loops (higher d/r)."
+    )
 
 
 def setup_screen() -> tuple[turtle._Screen, turtle.Turtle]:
