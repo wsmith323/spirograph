@@ -16,6 +16,15 @@ class SpiroType(Enum):
     EPITROCHOID = "epitrochoid"
 
 
+# Enum representing random suggestion complexity for spirograph curves
+class RandomComplexity(Enum):
+    """Enum representing the desired complexity for randomized suggestions."""
+
+    SIMPLE = "simple"
+    MEDIUM = "medium"
+    DENSE = "dense"
+
+
 class SpiroCurve:
     """Represents a single spirograph curve configuration and behavior.
 
@@ -287,6 +296,56 @@ def prompt_curve_type(default_type: SpiroType | None = None) -> SpiroType:  # ty
         print("Please enter 1 or 2.")
 
 
+# Prompt for random suggestion complexity level (simple, medium, dense)
+def prompt_random_complexity(
+    default_complexity: RandomComplexity | None = None,
+) -> RandomComplexity:  # type: ignore
+    """Prompt the user to select a complexity level for random suggestions.
+
+    Args:
+        default_complexity: Optional default complexity returned on empty input.
+
+    Returns:
+        The selected RandomComplexity.
+    """
+    label = make_prompt_label("random_complexity")
+
+    while True:
+        print(f"{label}:")
+        print("  1. Simple (clean, fewer lobes)")
+        print("  2. Medium (usually pretty)")
+        print("  3. Dense (more lobes, more intricate)")
+
+        if default_complexity is RandomComplexity.SIMPLE:
+            default_index = 1
+        elif default_complexity is RandomComplexity.DENSE:
+            default_index = 3
+        else:
+            default_index = 2
+
+        raw_value = input(f"Select {label} [1-3] [{default_index}]: ").strip()
+
+        if raw_value == "":
+            if default_complexity is not None:
+                return default_complexity
+            return RandomComplexity.MEDIUM
+
+        try:
+            choice_index = int(raw_value)
+        except ValueError:
+            print("Please enter 1, 2, or 3.")
+            continue
+
+        if choice_index == 1:
+            return RandomComplexity.SIMPLE
+        if choice_index == 2:
+            return RandomComplexity.MEDIUM
+        if choice_index == 3:
+            return RandomComplexity.DENSE
+
+        print("Please enter 1, 2, or 3.")
+
+
 def prompt_drawing_speed(current_speed: int) -> int:  # type: ignore
     """Prompt the user for a turtle drawing speed between 1 and 10.
 
@@ -362,41 +421,78 @@ def random_fixed_circle_radius(previous_curve: "SpiroCurve | None") -> int:
     return random.randint(low, high)
 
 
-def random_rolling_circle_radius(fixed_circle_radius: int) -> int:
-    # Mild bias toward the middle by averaging two samples
-    a = random.uniform(2.5, 6.0)
-    b = random.uniform(2.5, 6.0)
+def random_rolling_circle_radius(
+    fixed_circle_radius: int,
+    complexity: RandomComplexity,
+) -> int:
+    # Choose a target ratio R/r. Higher ratios tend to create more lobes and denser patterns.
+    if complexity is RandomComplexity.SIMPLE:
+        low_ratio, high_ratio = 2.5, 4.0
+        min_gcd = 2
+    elif complexity is RandomComplexity.DENSE:
+        low_ratio, high_ratio = 5.0, 10.0
+        min_gcd = 1
+    else:
+        low_ratio, high_ratio = 3.5, 6.5
+        min_gcd = 2
+
+    # Mild bias toward the middle by averaging two samples.
+    a = random.uniform(low_ratio, high_ratio)
+    b = random.uniform(low_ratio, high_ratio)
     ratio = (a + b) / 2
+
     r = max(2, int(round(fixed_circle_radius / ratio)))
     if r >= fixed_circle_radius:
         r = fixed_circle_radius - 1
-    # Try to find a nearby r with gcd >= 2 for better closure
-    for delta in range(0, 9):
+
+    # Try to find a nearby r with gcd >= min_gcd to improve closure when desired.
+    # For dense mode, allow gcd == 1 to keep more intricate / longer-closing curves.
+    for delta in range(0, 13):
         for sign in (-1, 1):
             r_candidate = r + sign * delta
             if r_candidate > 1 and r_candidate < fixed_circle_radius:
-                if math.gcd(fixed_circle_radius, r_candidate) >= 2:
+                if math.gcd(fixed_circle_radius, r_candidate) >= min_gcd:
                     return r_candidate
+
     return r
 
 
-def random_pen_offset(rolling_circle_radius: int) -> int:
-    a = random.uniform(0.5, 1.2)
-    b = random.uniform(0.5, 1.2)
+def random_pen_offset(
+    rolling_circle_radius: int,
+    complexity: RandomComplexity,
+) -> int:
+    # Choose d/r. Larger values trend toward spikier/loopier shapes.
+    if complexity is RandomComplexity.SIMPLE:
+        low_factor, high_factor = 0.45, 1.0
+        max_factor = 1.2
+    elif complexity is RandomComplexity.DENSE:
+        low_factor, high_factor = 0.85, 1.35
+        max_factor = 1.6
+    else:
+        low_factor, high_factor = 0.6, 1.2
+        max_factor = 1.4
+
+    a = random.uniform(low_factor, high_factor)
+    b = random.uniform(low_factor, high_factor)
     factor = (a + b) / 2
+
     d = int(round(rolling_circle_radius * factor))
-    d = max(1, min(d, int(round(rolling_circle_radius * 1.4))))
+    d = max(1, min(d, int(round(rolling_circle_radius * max_factor))))
     return d
 
 
-def create_custom_curve(previous_curve: SpiroCurve | None) -> SpiroCurve:
+def create_custom_curve(
+    previous_curve: SpiroCurve | None,
+    previous_random_complexity: RandomComplexity | None,
+) -> tuple[SpiroCurve, RandomComplexity]:
     """Prompt the user for all curve parameters and build a SpiroCurve.
 
     Args:
         previous_curve: Last custom curve used for providing default values, or None.
+        previous_random_complexity: Last used random complexity, or None.
 
     Returns:
-        A new SpiroCurve instance created from user input.
+        A tuple of (SpiroCurve, RandomComplexity) created from user input.
     """
     if previous_curve is not None:
         fixed_circle_radius_default = previous_curve.fixed_circle_radius
@@ -413,6 +509,10 @@ def create_custom_curve(previous_curve: SpiroCurve | None) -> SpiroCurve:
         color_default = "black"
         line_width_default = 1
 
+    random_complexity = prompt_random_complexity(
+        previous_random_complexity or RandomComplexity.MEDIUM
+    )
+
     guide_before_fixed_radius(previous_curve)
     fixed_circle_radius = prompt_positive_int_or_random(
         "fixed_circle_radius",
@@ -423,25 +523,34 @@ def create_custom_curve(previous_curve: SpiroCurve | None) -> SpiroCurve:
     rolling_circle_radius = prompt_positive_int_or_random(
         "rolling_circle_radius",
         default_value=rolling_circle_radius_default,
-        random_value_factory=lambda: random_rolling_circle_radius(fixed_circle_radius),
+        random_value_factory=lambda: random_rolling_circle_radius(
+            fixed_circle_radius,
+            random_complexity,
+        ),
     )
     guide_before_pen_offset(fixed_circle_radius, rolling_circle_radius, previous_curve)
     pen_offset = prompt_positive_int_or_random(
         "pen_offset",
         default_value=pen_offset_default,
-        random_value_factory=lambda: random_pen_offset(rolling_circle_radius),
+        random_value_factory=lambda: random_pen_offset(
+            rolling_circle_radius,
+            random_complexity,
+        ),
     )
     curve_type = prompt_curve_type(curve_type_default)
     color = prompt_string_with_default("color", color_default)
     line_width = prompt_positive_int("line_width", default_value=line_width_default)
 
-    return SpiroCurve(
-        fixed_circle_radius,
-        rolling_circle_radius,
-        pen_offset,
-        curve_type,
-        color,
-        line_width,
+    return (
+        SpiroCurve(
+            fixed_circle_radius,
+            rolling_circle_radius,
+            pen_offset,
+            curve_type,
+            color,
+            line_width,
+        ),
+        random_complexity,
     )
 
 
@@ -693,9 +802,13 @@ def main() -> None:
     screen, turtle_obj = setup_screen()
     drawing_speed = 1
     last_custom_curve: SpiroCurve | None = None
+    last_random_complexity: RandomComplexity | None = None
 
     while True:
-        spiro_curve = create_custom_curve(last_custom_curve)
+        spiro_curve, last_random_complexity = create_custom_curve(
+            last_custom_curve,
+            last_random_complexity,
+        )
         last_custom_curve = spiro_curve
 
         describe_curve(spiro_curve)
