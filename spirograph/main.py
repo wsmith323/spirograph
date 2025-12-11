@@ -1,3 +1,4 @@
+import random
 import turtle
 from enum import Enum
 from typing import List, Tuple
@@ -190,6 +191,41 @@ def prompt_positive_int(
         return parsed_value
 
 
+# Prompt for a positive int or allow 'r'/'rand' for random suggestion.
+def prompt_positive_int_or_random(
+    identifier: str,
+    default_value: int | None,
+    random_value_factory: callable,
+) -> int:  # type: ignore
+    """
+    Prompt for a positive integer or accept 'r'/'rand' for a random suggestion.
+    """
+    label = make_prompt_label(identifier)
+    while True:
+        if default_value is not None:
+            prompt_str = f"{label} [{default_value}] (or 'r' for random): "
+        else:
+            prompt_str = f"{label} (or 'r' for random): "
+        raw_value = input(prompt_str).strip()
+        # Accept random
+        if raw_value.lower() in ("r", "rand"):
+            value = random_value_factory()
+            print(f"Selected random {label}: {value}")
+            return value
+        # Accept default if present and blank
+        if raw_value == "" and default_value is not None:
+            return default_value
+        try:
+            parsed_value = int(raw_value)
+        except ValueError:
+            print("Please enter a valid integer or 'r' for random.")
+            continue
+        if parsed_value <= 0:
+            print("Please enter a positive integer.")
+            continue
+        return parsed_value
+
+
 def prompt_string_with_default(identifier: str, default_value: str) -> str:
     """Prompt the user for a string value with a default.
 
@@ -316,6 +352,43 @@ def ask_yes_no(prompt_text: str) -> bool:
         print('Please enter "y" or "n".')
 
 
+# --- Random value helpers for curve parameters ---
+def random_fixed_circle_radius(previous_curve: "SpiroCurve | None") -> int:
+    if previous_curve is None:
+        return random.randint(120, 280)
+    prev = previous_curve.fixed_circle_radius
+    low = max(100, int(round(prev * 0.7)))
+    high = min(320, int(round(prev * 1.3)))
+    return random.randint(low, high)
+
+
+def random_rolling_circle_radius(fixed_circle_radius: int) -> int:
+    # Mild bias toward the middle by averaging two samples
+    a = random.uniform(2.5, 6.0)
+    b = random.uniform(2.5, 6.0)
+    ratio = (a + b) / 2
+    r = max(2, int(round(fixed_circle_radius / ratio)))
+    if r >= fixed_circle_radius:
+        r = fixed_circle_radius - 1
+    # Try to find a nearby r with gcd >= 2 for better closure
+    for delta in range(0, 9):
+        for sign in (-1, 1):
+            r_candidate = r + sign * delta
+            if r_candidate > 1 and r_candidate < fixed_circle_radius:
+                if math.gcd(fixed_circle_radius, r_candidate) >= 2:
+                    return r_candidate
+    return r
+
+
+def random_pen_offset(rolling_circle_radius: int) -> int:
+    a = random.uniform(0.5, 1.2)
+    b = random.uniform(0.5, 1.2)
+    factor = (a + b) / 2
+    d = int(round(rolling_circle_radius * factor))
+    d = max(1, min(d, int(round(rolling_circle_radius * 1.4))))
+    return d
+
+
 def create_custom_curve(previous_curve: SpiroCurve | None) -> SpiroCurve:
     """Prompt the user for all curve parameters and build a SpiroCurve.
 
@@ -341,19 +414,22 @@ def create_custom_curve(previous_curve: SpiroCurve | None) -> SpiroCurve:
         line_width_default = 1
 
     guide_before_fixed_radius(previous_curve)
-    fixed_circle_radius = prompt_positive_int(
+    fixed_circle_radius = prompt_positive_int_or_random(
         "fixed_circle_radius",
         default_value=fixed_circle_radius_default,
+        random_value_factory=lambda: random_fixed_circle_radius(previous_curve),
     )
     guide_before_rolling_radius(fixed_circle_radius, previous_curve)
-    rolling_circle_radius = prompt_positive_int(
+    rolling_circle_radius = prompt_positive_int_or_random(
         "rolling_circle_radius",
         default_value=rolling_circle_radius_default,
+        random_value_factory=lambda: random_rolling_circle_radius(fixed_circle_radius),
     )
     guide_before_pen_offset(fixed_circle_radius, rolling_circle_radius, previous_curve)
-    pen_offset = prompt_positive_int(
+    pen_offset = prompt_positive_int_or_random(
         "pen_offset",
         default_value=pen_offset_default,
+        random_value_factory=lambda: random_pen_offset(rolling_circle_radius),
     )
     curve_type = prompt_curve_type(curve_type_default)
     color = prompt_string_with_default("color", color_default)
@@ -434,6 +510,9 @@ def guide_before_fixed_radius(previous_curve: SpiroCurve | None) -> None:
             "  This parameter scales the entire figure uniformly. "
             "Try values in the 100–300 range for a typical window."
         )
+        print(
+            "  Enter a number, press Enter for the default, or type 'r' for a random suggestion."
+        )
         return
 
     prev_R = previous_curve.fixed_circle_radius
@@ -446,6 +525,9 @@ def guide_before_fixed_radius(previous_curve: SpiroCurve | None) -> None:
     print(
         f"  Choosing R larger than {prev_R} will scale the pattern up uniformly; "
         f"choosing R smaller will scale it down uniformly."
+    )
+    print(
+        "  Enter a number, press Enter for the default, or type 'r' for a random suggestion."
     )
 
 
@@ -465,13 +547,16 @@ def guide_before_rolling_radius(
 
     if previous_curve is None:
         print(
-            "  r must be smaller than R for hypotrochoids. "
-            "Smaller r (relative to R) gives more lobes and a denser pattern; "
+            "  r must be smaller than R for hypotrochoids.\n"
+            "Smaller r (relative to R) gives more lobes and a denser pattern.\n"
             "larger r (but still < R) gives fewer, larger lobes."
         )
         print(
             "  Ratios R/r that are non-integers tend to look more intricate and dense than "
             "simple integer ratios."
+        )
+        print(
+            "  Enter a number, press Enter for the default, or type 'r' for a random suggestion."
         )
         return
 
@@ -501,6 +586,9 @@ def guide_before_rolling_radius(
     print(
         f"  Choosing r larger than {prev_r} (but still < R) decreases R/r → fewer lobes and a simpler figure."
     )
+    print(
+        "  Enter a number, press Enter for the default, or type 'r' for a random suggestion."
+    )
 
 
 def guide_before_pen_offset(
@@ -521,10 +609,34 @@ def guide_before_pen_offset(
     print("\nPen offset (d):")
     print(f"  Current R = {R}, r = {r}.")
 
+    gcd_value = math.gcd(R, r)
+    ratio = R / r
+    approx_petals = R // gcd_value
+    rotations_to_close = r // gcd_value
+
+    if ratio < 2.0:
+        ratio_desc = "very simple (few large lobes)"
+    elif ratio < 4.0:
+        ratio_desc = "moderate complexity (visible lobes)"
+    else:
+        ratio_desc = "high complexity (many lobes; dense pattern)"
+
+    if abs(ratio - round(ratio)) < 1e-6:
+        ratio_symmetry = "integer-like ratio → cleaner symmetry"
+    else:
+        ratio_symmetry = "non-integer ratio → more intricate/dense"
+
+    print(f"  So far: R/r ≈ {ratio:.3f} → {ratio_desc}; {ratio_symmetry}.")
+    print(f"  So far: gcd(R, r) = {gcd_value} → approx lobes ≈ {approx_petals}.")
+    print(f"  So far: closes after ~{rotations_to_close} rolling-circle rotations.\n")
+
     if previous_curve is None:
         print(
-            "  The key quantity is d/r: small d/r → softer, low-amplitude petals; "
+            "  The key quantity is d/r: small d/r → softer, low-amplitude petals;\n"
             "d/r around 1 → classic spiky look; d/r > 1 → loops and more chaotic detail."
+        )
+        print(
+            "  Enter a number, press Enter for the default, or type 'r' for a random suggestion."
         )
         return
 
@@ -549,8 +661,11 @@ def guide_before_pen_offset(
 
     print(f"  That setting would give {desc}.")
     print(
-        f"  Choosing d smaller than {prev_d} will generally soften the pattern (lower d/r); "
+        f"  Choosing d smaller than {prev_d} will generally soften the pattern (lower d/r);\n"
         f"choosing d larger than {prev_d} will exaggerate spikes/loops (higher d/r)."
+    )
+    print(
+        "  Enter a number, press Enter for the default, or type 'r' for a random suggestion."
     )
 
 
