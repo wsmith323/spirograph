@@ -1,6 +1,6 @@
 import turtle
 from enum import Enum
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 
 import math
 
@@ -316,147 +316,6 @@ def ask_yes_no(prompt_text: str) -> bool:
         print('Please enter "y" or "n".')
 
 
-def build_presets() -> Dict[str, SpiroCurve]:
-    """Build and return the preset spirograph configurations.
-
-    Returns:
-        A mapping of preset names to SpiroCurve instances.
-    """
-    presets: Dict[str, SpiroCurve] = {
-        "five_petal_flower": SpiroCurve(
-            125,
-            75,
-            50,
-            SpiroType.HYPOTROCHOID,
-            "blue",
-            1,
-        ),
-        "tight_starburst": SpiroCurve(
-            105,
-            30,
-            60,
-            SpiroType.EPITROCHOID,
-            "red",
-            1,
-        ),
-        "gear_ring": SpiroCurve(
-            180,
-            45,
-            20,
-            SpiroType.EPITROCHOID,
-            "green",
-            1,
-        ),
-        "inner_rosette": SpiroCurve(
-            150,
-            60,
-            30,
-            SpiroType.HYPOTROCHOID,
-            "purple",
-            1,
-        ),
-        "outer_loop_bloom": SpiroCurve(
-            160,
-            40,
-            80,
-            SpiroType.EPITROCHOID,
-            "orange",
-            1,
-        ),
-        "nested_loops": SpiroCurve(
-            200,
-            70,
-            40,
-            SpiroType.HYPOTROCHOID,
-            "brown",
-            1,
-        ),
-        "spiky_wheel": SpiroCurve(
-            170,
-            30,
-            90,
-            SpiroType.EPITROCHOID,
-            "darkblue",
-            1,
-        ),
-        "wide_rosette": SpiroCurve(
-            220,
-            90,
-            30,
-            SpiroType.HYPOTROCHOID,
-            "magenta",
-            1,
-        ),
-        "compact_flower": SpiroCurve(
-            120,
-            50,
-            60,
-            SpiroType.EPITROCHOID,
-            "cyan",
-            1,
-        ),
-        "thin_rings": SpiroCurve(
-            210,
-            35,
-            15,
-            SpiroType.HYPOTROCHOID,
-            "black",
-            1,
-        ),
-    }
-    return presets
-
-
-def choose_preset_or_custom(
-    presets: Dict[str, SpiroCurve],
-    last_custom_curve: SpiroCurve | None,
-) -> tuple[SpiroCurve | None, SpiroCurve | None]:
-    """Allow the user to choose a preset or enter custom values.
-
-    Args:
-        presets: Mapping of preset names to SpiroCurve instances.
-        last_custom_curve: Last custom curve used for providing default values, or None.
-
-    Returns:
-        A tuple of (selected_curve or None, updated_last_custom_curve).
-    """
-    preset_items = list(presets.items())
-
-    print("\nAvailable presets:")
-    for index, (name, _) in enumerate(preset_items, start=1):
-        print(f"{index}. {name}")
-
-    custom_option_index = len(preset_items) + 1
-    print(f"\n{custom_option_index}. Custom values")
-
-    raw_choice = input(
-        f"\nSelect an option [1-{custom_option_index}] (empty to exit): ",
-    ).strip()
-
-    if raw_choice == "":
-        print("No selection entered. Exiting.")
-        return None, last_custom_curve
-
-    try:
-        choice_index = int(raw_choice)
-    except ValueError:
-        print("No valid preset selected. Exiting.")
-        return None, last_custom_curve
-
-    if 1 <= choice_index <= len(preset_items):
-        selected_name, selected_curve = preset_items[choice_index - 1]
-        print(f"You selected preset: {selected_name}")
-        return selected_curve, last_custom_curve
-
-    if choice_index == custom_option_index:
-        print("Entering custom values.")
-        new_custom_curve = create_custom_curve(last_custom_curve)
-        return new_custom_curve, new_custom_curve
-
-    print("No valid preset selected. Exiting.")
-    return None, last_custom_curve
-
-
 def create_custom_curve(previous_curve: SpiroCurve | None) -> SpiroCurve:
     """Prompt the user for all curve parameters and build a SpiroCurve.
 
@@ -466,6 +325,18 @@ def create_custom_curve(previous_curve: SpiroCurve | None) -> SpiroCurve:
     Returns:
         A new SpiroCurve instance created from user input.
     """
+    print("\nConfigure your spirograph curve.")
+    print(
+        "  Fixed circle radius (R) controls overall size; try 100-300 for a 1000x1000 window."
+    )
+    print(
+        "  Rolling circle radius (r) controls lobes and detail; try 20-150 and keep r < R."
+    )
+    print("  Pen offset (d) controls spikiness:")
+    print("    - d << r: very soft, low-amplitude petals")
+    print("    - d ≈ r: classic spiky flower")
+    print("    - d > r: complex, loopy patterns\n")
+
     if previous_curve is not None:
         fixed_circle_radius_default = previous_curve.fixed_circle_radius
         rolling_circle_radius_default = previous_curve.rolling_circle_radius
@@ -481,14 +352,17 @@ def create_custom_curve(previous_curve: SpiroCurve | None) -> SpiroCurve:
         color_default = "black"
         line_width_default = 1
 
+    print("Fixed circle radius (R): overall size of the pattern.")
     fixed_circle_radius = prompt_positive_int(
         "fixed_circle_radius",
         default_value=fixed_circle_radius_default,
     )
+    print("Rolling circle radius (r): smaller r ⇒ more lobes and finer detail.")
     rolling_circle_radius = prompt_positive_int(
         "rolling_circle_radius",
         default_value=rolling_circle_radius_default,
     )
+    print("Pen offset (d): distance from the rolling circle center to the pen.")
     pen_offset = prompt_positive_int(
         "pen_offset",
         default_value=pen_offset_default,
@@ -505,6 +379,55 @@ def create_custom_curve(previous_curve: SpiroCurve | None) -> SpiroCurve:
         color,
         line_width,
     )
+
+
+# Helper to describe the curve's properties
+def describe_curve(curve: SpiroCurve) -> None:
+    """Print guidance about how the current parameters shape the curve.
+
+    Args:
+        curve: The spirograph curve to describe.
+    """
+    fixed = curve.fixed_circle_radius
+    rolling = curve.rolling_circle_radius
+    offset = curve.pen_offset
+
+    gcd_value = math.gcd(fixed, rolling)
+    ratio = fixed / rolling
+    offset_factor = offset / rolling
+
+    approx_petals = fixed // gcd_value
+    rotations_to_close = rolling // gcd_value
+
+    if ratio < 2.0:
+        ratio_desc = "very simple, large rounded shape"
+    elif ratio < 4.0:
+        ratio_desc = "moderate complexity with visible lobes"
+    else:
+        ratio_desc = "many lobes and fine detail; dense pattern"
+
+    if offset_factor < 0.3:
+        offset_desc = "pen close to center; very soft, low-amplitude petals"
+    elif offset_factor < 0.9:
+        offset_desc = "pen inside circle; softer petals"
+    elif offset_factor < 1.1:
+        offset_desc = "pen near rim; classic spiky look"
+    elif offset_factor < 1.6:
+        offset_desc = "pen outside circle; complex loops and self-intersections"
+    else:
+        offset_desc = "pen far outside circle; very loopy and potentially chaotic"
+
+    if curve.curve_type is SpiroType.HYPOTROCHOID:
+        curve_kind = "rolling inside fixed circle (hypotrochoid)"
+    else:
+        curve_kind = "rolling outside fixed circle (epitrochoid)"
+
+    print("\nCurve guidance:")
+    print(f"  Radius ratio R/r: {ratio:.3f} → {ratio_desc}")
+    print(f"  Offset factor d/r: {offset_factor:.3f} → {offset_desc}")
+    print(f"  gcd(R, r): {gcd_value} → approx petals: {approx_petals}")
+    print(f"  Rotations of rolling circle until closure: ~{rotations_to_close}")
+    print(f"  Curve type: {curve_kind}\n")
 
 
 def setup_screen() -> tuple[turtle._Screen, turtle.Turtle]:
@@ -528,18 +451,19 @@ def setup_screen() -> tuple[turtle._Screen, turtle.Turtle]:
 
 def main() -> None:
     """Entry point for the spirograph simulator."""
-    presets = build_presets()
     screen, turtle_obj = setup_screen()
     drawing_speed = 1
     last_custom_curve: SpiroCurve | None = None
 
     while True:
-        spiro_curve, last_custom_curve = choose_preset_or_custom(
-            presets,
-            last_custom_curve,
-        )
-        if spiro_curve is None:
+        print()
+        if not ask_yes_no("Draw a new curve? (y/n): "):
             break
+
+        spiro_curve = create_custom_curve(last_custom_curve)
+        last_custom_curve = spiro_curve
+
+        describe_curve(spiro_curve)
 
         drawing_speed = prompt_drawing_speed(drawing_speed)
 
