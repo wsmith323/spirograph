@@ -695,10 +695,6 @@ def main() -> None:
     last_custom_curve: SpiroCurve | None = None
 
     while True:
-        print()
-        if not ask_yes_no("Draw a new curve? (y/n): "):
-            break
-
         spiro_curve = create_custom_curve(last_custom_curve)
         last_custom_curve = spiro_curve
 
@@ -721,6 +717,10 @@ def main() -> None:
         turtle_obj.pendown()
 
         spiro_curve.draw(turtle_obj, NUMBER_OF_STEPS, drawing_speed)
+
+        print()
+        if not ask_yes_no("Draw a new curve? (y/n): "):
+            break
 
     print("Done.")
     screen.update()
