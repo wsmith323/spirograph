@@ -212,7 +212,7 @@ def prompt_positive_int_or_random(
     default_value: int | None,
     random_value_factory: Callable[[], int],
 ) -> int:  # type: ignore
-    """Prompt for a positive integer or accept 'r'/'rand' for a random suggestion."""
+    """Prompt for a positive integer or accept 'r'/'rand' for a random value."""
     label = make_prompt_label(identifier)
     while True:
         if default_value is not None:
@@ -719,7 +719,7 @@ def guide_before_fixed_radius(previous_curve: SpiroCurve | None) -> None:
             "  This parameter scales the entire figure uniformly. Try values in the 100–300 range for a typical window."
         )
         print(
-            "  Enter a number, press Enter for the default, or type 'r' for a random suggestion."
+            "  Enter a number, press Enter for the default, or type 'r' for a random value."
         )
         return
 
@@ -733,7 +733,7 @@ def guide_before_fixed_radius(previous_curve: SpiroCurve | None) -> None:
         f"  Choosing R larger than {prev_R} will scale the pattern up uniformly; choosing R smaller will scale it down."
     )
     print(
-        "  Enter a number, press Enter for the default, or type 'r' for a random suggestion."
+        "  Enter a number, press Enter for the default, or type 'r' for a random value."
     )
 
 
@@ -761,7 +761,7 @@ def guide_before_rolling_radius(
             "  Ratios R/r that are non-integers tend to look more intricate and dense than simple integer ratios."
         )
         print(
-            "  Enter a number, press Enter for the default, or type 'r' for a random suggestion."
+            "  Enter a number, press Enter for the default, or type 'r' for a random value."
         )
         return
 
@@ -791,7 +791,7 @@ def guide_before_rolling_radius(
         f"  Choosing r larger than {prev_r} decreases R/r → fewer lobes and a simpler figure."
     )
     print(
-        "  Enter a number, press Enter for the default, or type 'r' for a random suggestion."
+        "  Enter a number, press Enter for the default, or type 'r' for a random value."
     )
 
 
@@ -840,7 +840,7 @@ def guide_before_pen_offset(
             "d/r around 1 → classic spiky look; d/r > 1 → loops and more chaotic detail."
         )
         print(
-            "  Enter a number, press Enter for the default, or type 'r' for a random suggestion."
+            "  Enter a number, press Enter for the default, or type 'r' for a random value."
         )
         return
 
@@ -870,7 +870,7 @@ def guide_before_pen_offset(
         f"  Choosing d larger than {prev_d} will exaggerate spikes/loops (higher d/r)."
     )
     print(
-        "  Enter a number, press Enter for the default, or type 'r' for a random suggestion."
+        "  Enter a number, press Enter for the default, or type 'r' for a random value."
     )
 
 
