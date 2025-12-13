@@ -8,6 +8,7 @@ spirograph kit.
 - Have a command line interface for configuring and running the spirograph.
 - Support circular tracks
 - Support circular rollers
+- Support random curve inputs based on user preferences.
 - Use Python Turtle Graphics to draw the spirograph curves.
 
 ## Future versions may include:
