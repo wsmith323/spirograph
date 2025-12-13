@@ -10,40 +10,29 @@ SCREEN_SIZE = 1000
 
 
 class SpiroType(Enum):
-    """Enum representing the type of spirograph curve."""
-
     HYPOTROCHOID = "hypotrochoid"
     EPITROCHOID = "epitrochoid"
 
 
 class RandomComplexity(Enum):
-    """Enum representing the desired complexity for randomized suggestions."""
-
     SIMPLE = "simple"
     MEDIUM = "medium"
     DENSE = "dense"
 
 
 class RandomConstraintMode(Enum):
-    """Enum representing whether random suggestions should stay physical-ish or explore extended space."""
-
     PHYSICAL = "physical"
     EXTENDED = "extended"
     WILD = "wild"
 
 
+class RandomEvolutionMode(Enum):
+    RANDOM = "random"
+    DRIFT = "drift"
+    JUMP = "jump"
+
+
 class SpiroCurve:
-    """Represents a single spirograph curve configuration and behavior.
-
-    Attributes:
-        fixed_circle_radius: Radius of the stationary (fixed) circle.
-        rolling_circle_radius: Radius of the rolling circle.
-        pen_offset: Distance from the rolling circle center to the pen.
-        curve_type: Type of curve, hypotrochoid or epitrochoid.
-        color: Line color for drawing.
-        line_width: Line width for drawing.
-    """
-
     def __init__(
         self,
         fixed_circle_radius: int,
@@ -61,129 +50,121 @@ class SpiroCurve:
         self.line_width = line_width
 
     def _compute_period(self) -> float:
-        """Compute the full period in radians for the curve.
-
-        Returns:
-            The angular period (in radians) needed to close the curve.
-        """
-        greatest_common_divisor = math.gcd(
-            self.fixed_circle_radius,
-            self.rolling_circle_radius,
-        )
-        rotation_ratio = self.rolling_circle_radius // greatest_common_divisor
-        period = 2.0 * math.pi * rotation_ratio
-        return period
+        gcd_value = math.gcd(self.fixed_circle_radius, self.rolling_circle_radius)
+        return 2.0 * math.pi * (self.rolling_circle_radius // gcd_value)
 
     def generate_points(self, number_of_steps: int) -> List[Tuple[float, float]]:
-        """Generate points along the spirograph curve.
-
-        Args:
-            number_of_steps: Number of steps to use for sampling the curve.
-
-        Returns:
-            A list of (x, y) coordinate pairs describing the curve.
-        """
         period = self._compute_period()
         points: List[Tuple[float, float]] = []
 
-        for step_index in range(number_of_steps + 1):
-            t_value = (step_index / number_of_steps) * period
+        for i in range(number_of_steps + 1):
+            t = (i / number_of_steps) * period
 
             if self.curve_type is SpiroType.HYPOTROCHOID:
-                radius_difference = (
-                    self.fixed_circle_radius - self.rolling_circle_radius
+                R, r, d = (
+                    self.fixed_circle_radius,
+                    self.rolling_circle_radius,
+                    self.pen_offset,
                 )
-                primary_angle = t_value
-                secondary_angle = (
-                    radius_difference / self.rolling_circle_radius
-                ) * t_value
-
-                x_coordinate = (radius_difference * math.cos(primary_angle)) + (
-                    self.pen_offset * math.cos(secondary_angle)
-                )
-                y_coordinate = (radius_difference * math.sin(primary_angle)) - (
-                    self.pen_offset * math.sin(secondary_angle)
-                )
+                diff = R - r
+                x = diff * math.cos(t) + d * math.cos((diff / r) * t)
+                y = diff * math.sin(t) - d * math.sin((diff / r) * t)
             else:
-                radius_sum = self.fixed_circle_radius + self.rolling_circle_radius
-                primary_angle = t_value
-                secondary_angle = (radius_sum / self.rolling_circle_radius) * t_value
-
-                x_coordinate = (radius_sum * math.cos(primary_angle)) - (
-                    self.pen_offset * math.cos(secondary_angle)
+                R, r, d = (
+                    self.fixed_circle_radius,
+                    self.rolling_circle_radius,
+                    self.pen_offset,
                 )
-                y_coordinate = (radius_sum * math.sin(primary_angle)) - (
-                    self.pen_offset * math.sin(secondary_angle)
-                )
+                summ = R + r
+                x = summ * math.cos(t) - d * math.cos((summ / r) * t)
+                y = summ * math.sin(t) - d * math.sin((summ / r) * t)
 
-            points.append((x_coordinate, y_coordinate))
+            points.append((x, y))
 
         return points
 
-    def draw(
-        self,
-        turtle_obj: turtle.Turtle,
-        number_of_steps: int,
-        drawing_speed: int,
-    ) -> None:
-        """Draw the spirograph curve using a turtle object.
-
-        Args:
-            turtle_obj: The turtle used to draw the curve.
-            number_of_steps: Number of steps to use for sampling the curve.
-            drawing_speed: Logical drawing speed chosen by the user (1 slowest, 10 fastest).
-        """
+    def draw(self, turtle_obj: turtle.Turtle, steps: int, speed: int) -> None:
         screen = turtle_obj.getscreen()
-        batch_size = compute_batch_size(drawing_speed)
-
-        points = self.generate_points(number_of_steps)
+        batch = compute_batch_size(speed)
+        points = self.generate_points(steps)
 
         turtle_obj.penup()
         turtle_obj.color(self.color)
         turtle_obj.pensize(self.line_width)
 
-        if not points:
-            return
-
-        first_x, first_y = points[0]
-        turtle_obj.goto(first_x, first_y)
+        turtle_obj.goto(points[0])
         turtle_obj.pendown()
 
-        for index, (x_coordinate, y_coordinate) in enumerate(points[1:], start=1):
-            turtle_obj.goto(x_coordinate, y_coordinate)
-            if index % batch_size == 0:
+        for i, p in enumerate(points[1:], start=1):
+            turtle_obj.goto(p)
+            if i % batch == 0:
                 screen.update()
 
         screen.update()
 
 
+# ---------------- prompts ---------------- #
+
+
 def make_prompt_label(identifier: str) -> str:
-    """Convert an identifier into a human-friendly prompt label.
+    return " ".join(w.capitalize() for w in identifier.split("_"))
 
-    Args:
-        identifier: The identifier to convert.
 
-    Returns:
-        A human-readable label derived from the identifier.
-    """
-    words = identifier.split("_")
-    label = " ".join(word.capitalize() for word in words)
-    return label
+def prompt_enum(label: str, enum_cls, default):
+    values = list(enum_cls)
+
+    descriptions_by_enum = {
+        RandomComplexity: {
+            RandomComplexity.SIMPLE: "Cleaner, fewer lobes; tends to look more symmetric.",
+            RandomComplexity.MEDIUM: "Balanced defaults; usually pretty.",
+            RandomComplexity.DENSE: "More lobes and detail; tends to close slower and look busier.",
+        },
+        RandomConstraintMode: {
+            RandomConstraintMode.PHYSICAL: "Stay close to real spirograph constraints.",
+            RandomConstraintMode.EXTENDED: "Allow r > R and d > r; more loopiness.",
+            RandomConstraintMode.WILD: "Very permissive; frequent self-intersections and chaos.",
+        },
+        RandomEvolutionMode: {
+            RandomEvolutionMode.RANDOM: "Ignores the previous run; fresh random each time.",
+            RandomEvolutionMode.DRIFT: "Random, but centered near the previous value.",
+            RandomEvolutionMode.JUMP: "Mostly drift with occasional big changes.",
+        },
+    }
+
+    descriptions = descriptions_by_enum.get(enum_cls, {})
+
+    while True:
+        print(f"{label}:")
+        for index, value in enumerate(values, start=1):
+            description = descriptions.get(value)
+            if description:
+                print(f"  {index}. {value.value} - {description}")
+            else:
+                print(f"  {index}. {value.value}")
+
+        default_index = values.index(default) + 1
+        raw_value = input(
+            f"Select {label} [1-{len(values)}] [{default_index}]: "
+        ).strip()
+        if raw_value == "":
+            return default
+
+        try:
+            idx = int(raw_value) - 1
+        except ValueError:
+            print("Invalid choice.")
+            continue
+
+        if 0 <= idx < len(values):
+            return values[idx]
+
+        print("Invalid choice.")
 
 
 def prompt_positive_int(
     identifier: str,
     default_value: int | None = None,
 ) -> int:  # type: ignore
-    """Prompt the user for a positive integer based on an identifier.
-
-    Args:
-        identifier: Identifier used to derive the prompt label.
-        default_value: Optional default value returned on empty input.
-
-    Returns:
-        A validated positive integer entered by the user.
-    """
     label = make_prompt_label(identifier)
 
     while True:
@@ -207,51 +188,7 @@ def prompt_positive_int(
         return parsed_value
 
 
-def prompt_positive_int_or_random(
-    identifier: str,
-    default_value: int | None,
-    random_value_factory: Callable[[], int],
-) -> int:  # type: ignore
-    """Prompt for a positive integer or accept 'r'/'rand' for a random value."""
-    label = make_prompt_label(identifier)
-    while True:
-        if default_value is not None:
-            prompt_str = f"{label} [{default_value}] (or 'r' for random): "
-        else:
-            prompt_str = f"{label} (or 'r' for random): "
-        raw_value = input(prompt_str).strip()
-
-        if raw_value.lower() in ("r", "rand"):
-            value = random_value_factory()
-            print(f"Selected random {label}: {value}")
-            return value
-
-        if raw_value == "" and default_value is not None:
-            return default_value
-
-        try:
-            parsed_value = int(raw_value)
-        except ValueError:
-            print("Please enter a valid integer or 'r' for random.")
-            continue
-
-        if parsed_value <= 0:
-            print("Please enter a positive integer.")
-            continue
-
-        return parsed_value
-
-
 def prompt_string_with_default(identifier: str, default_value: str) -> str:
-    """Prompt the user for a string value with a default.
-
-    Args:
-        identifier: Identifier used to derive the prompt label.
-        default_value: Default value used on empty input.
-
-    Returns:
-        The entered string, or the default when input is empty.
-    """
     label = make_prompt_label(identifier)
     raw_value = input(f"{label} [{default_value}]: ").strip()
     if raw_value == "":
@@ -259,156 +196,39 @@ def prompt_string_with_default(identifier: str, default_value: str) -> str:
     return raw_value
 
 
-def prompt_curve_type(default_type: SpiroType | None = None) -> SpiroType:  # type: ignore
-    """Prompt the user to select a curve type.
-
-    Args:
-        default_type: Optional default curve type returned on empty input.
-
-    Returns:
-        The selected SpiroType.
-    """
-    label = make_prompt_label("curve_type")
-
+def prompt_positive_int_or_random(
+    identifier: str,
+    default_value: int | None,
+    random_factory: Callable[[], int],
+) -> int:
+    label = make_prompt_label(identifier)
     while True:
-        print(f"{label}:")
-        print("  1. Hypotrochoid (rolling inside fixed circle)")
-        print("  2. Epitrochoid (rolling outside fixed circle)")
+        suffix = f" [{default_value}]" if default_value is not None else ""
+        raw_value = input(f"{label}{suffix} (or 'r'): ").strip()
 
-        if default_type is not None:
-            default_index = 1 if default_type is SpiroType.HYPOTROCHOID else 2
-        else:
-            default_index = 1
+        if raw_value.lower() in ("r", "rand"):
+            value = random_factory()
+            print(f"  Selected random {label}: {value}")
+            return value
 
-        raw_value = input(f"Select {label} [1-2] [{default_index}]: ").strip()
-
-        if raw_value == "":
-            if default_type is not None:
-                return default_type
-            return SpiroType.HYPOTROCHOID
+        if raw_value == "" and default_value is not None:
+            return default_value
 
         try:
-            choice_index = int(raw_value)
+            value = int(raw_value)
         except ValueError:
-            print("Please enter 1 or 2.")
+            print("Enter a positive integer or 'r'.")
             continue
 
-        if choice_index == 1:
-            return SpiroType.HYPOTROCHOID
-        if choice_index == 2:
-            return SpiroType.EPITROCHOID
-
-        print("Please enter 1 or 2.")
-
-
-def prompt_random_complexity(
-    default_complexity: RandomComplexity | None = None,
-) -> RandomComplexity:  # type: ignore
-    """Prompt the user to select a complexity level for random suggestions.
-
-    Args:
-        default_complexity: Optional default complexity returned on empty input.
-
-    Returns:
-        The selected RandomComplexity.
-    """
-    label = make_prompt_label("random_complexity")
-
-    while True:
-        print(f"{label}:")
-        print("  1. Simple (clean, fewer lobes)")
-        print("  2. Medium (usually pretty)")
-        print("  3. Dense (more lobes, more intricate)")
-
-        if default_complexity is RandomComplexity.SIMPLE:
-            default_index = 1
-        elif default_complexity is RandomComplexity.DENSE:
-            default_index = 3
-        else:
-            default_index = 2
-
-        raw_value = input(f"Select {label} [1-3] [{default_index}]: ").strip()
-
-        if raw_value == "":
-            if default_complexity is not None:
-                return default_complexity
-            return RandomComplexity.MEDIUM
-
-        try:
-            choice_index = int(raw_value)
-        except ValueError:
-            print("Please enter 1, 2, or 3.")
+        if value <= 0:
+            print("Please enter a positive integer.")
             continue
 
-        if choice_index == 1:
-            return RandomComplexity.SIMPLE
-        if choice_index == 2:
-            return RandomComplexity.MEDIUM
-        if choice_index == 3:
-            return RandomComplexity.DENSE
-
-        print("Please enter 1, 2, or 3.")
-
-
-def prompt_random_constraint_mode(
-    default_mode: RandomConstraintMode | None = None,
-) -> RandomConstraintMode:  # type: ignore
-    """Prompt the user to select a constraint mode for random suggestions.
-
-    Args:
-        default_mode: Optional default mode returned on empty input.
-
-    Returns:
-        The selected RandomConstraintMode.
-    """
-    label = make_prompt_label("random_constraint_mode")
-
-    while True:
-        print(f"{label}:")
-        print("  1. Physical-ish (stay close to spirograph kit constraints)")
-        print("  2. Extended (allow r > R and d > r; may be chaotic)")
-        print("  3. Wild (very permissive; frequently chaotic)")
-
-        if default_mode is RandomConstraintMode.PHYSICAL:
-            default_index = 1
-        elif default_mode is RandomConstraintMode.WILD:
-            default_index = 3
-        else:
-            default_index = 2
-
-        raw_value = input(f"Select {label} [1-3] [{default_index}]: ").strip()
-
-        if raw_value == "":
-            if default_mode is not None:
-                return default_mode
-            return RandomConstraintMode.EXTENDED
-
-        try:
-            choice_index = int(raw_value)
-        except ValueError:
-            print("Please enter 1, 2, or 3.")
-            continue
-
-        if choice_index == 1:
-            return RandomConstraintMode.PHYSICAL
-        if choice_index == 2:
-            return RandomConstraintMode.EXTENDED
-        if choice_index == 3:
-            return RandomConstraintMode.WILD
-
-        print("Please enter 1, 2, or 3.")
+        return value
 
 
 def prompt_drawing_speed(current_speed: int) -> int:  # type: ignore
-    """Prompt the user for a turtle drawing speed between 1 and 10.
-
-    Args:
-        current_speed: The current drawing speed, used as the default.
-
-    Returns:
-        A validated drawing speed between 1 (slow) and 10 (fast).
-    """
-    label = "Drawing Speed [1 (slow) - 10 (fast)]"
+    label = "Drawing speed [1 (slow) - 10 (fast)]"
 
     while True:
         raw_value = input(f"{label} [{current_speed}]: ").strip()
@@ -428,32 +248,7 @@ def prompt_drawing_speed(current_speed: int) -> int:  # type: ignore
         return parsed_value
 
 
-def compute_batch_size(drawing_speed: int) -> int:
-    """Compute the batch size for screen updates based on drawing speed.
-
-    Args:
-        drawing_speed: Logical drawing speed from 1 (slowest) to 10 (fastest).
-
-    Returns:
-        The number of points to draw between screen updates.
-    """
-    if drawing_speed <= 1:
-        return 1
-    if drawing_speed >= 10:
-        return 2**9
-
-    return 2 ** (drawing_speed - 1)
-
-
 def ask_yes_no(prompt_text: str) -> bool:
-    """Ask a yes/no question and return the answer as a boolean.
-
-    Args:
-        prompt_text: Text to show when asking the question.
-
-    Returns:
-        True if the user answered yes, otherwise False.
-    """
     while True:
         raw_value = input(prompt_text).strip().lower()
         if raw_value in ("y", "yes"):
@@ -463,190 +258,10 @@ def ask_yes_no(prompt_text: str) -> bool:
         print('Please enter "y" or "n".')
 
 
-def random_fixed_circle_radius(previous_curve: "SpiroCurve | None") -> int:
-    """Generate a random fixed circle radius in a generally usable range."""
-    if previous_curve is None:
-        return random.randint(120, 280)
-    prev = previous_curve.fixed_circle_radius
-    low = max(100, int(round(prev * 0.7)))
-    high = min(320, int(round(prev * 1.3)))
-    return random.randint(low, high)
+# ---------------- guidance and description ---------------- #
 
 
-def random_rolling_circle_radius(
-    fixed_circle_radius: int,
-    complexity: RandomComplexity,
-    constraint_mode: RandomConstraintMode,
-) -> int:
-    """Generate a random rolling radius, optionally exploring extended and wild ranges."""
-    R = fixed_circle_radius
-
-    if complexity is RandomComplexity.SIMPLE:
-        low_ratio, high_ratio = 2.5, 4.5
-        min_gcd = 2
-    elif complexity is RandomComplexity.DENSE:
-        low_ratio, high_ratio = 5.0, 14.0
-        min_gcd = 1
-    else:
-        low_ratio, high_ratio = 3.5, 9.0
-        min_gcd = 1 if constraint_mode is not RandomConstraintMode.PHYSICAL else 2
-
-    a = random.uniform(low_ratio, high_ratio)
-    b = random.uniform(low_ratio, high_ratio)
-    ratio = (a + b) / 2
-
-    r_from_ratio = max(2, int(round(R / ratio)))
-
-    if constraint_mode is RandomConstraintMode.PHYSICAL:
-        r = min(R - 1, r_from_ratio)
-    else:
-        if constraint_mode is RandomConstraintMode.WILD:
-            inversion_probability = 0.55
-            max_multiplier = 3.0
-        else:
-            inversion_probability = 0.35
-            max_multiplier = 2.0
-
-        if random.random() < inversion_probability:
-            high = max(2, int(round(R * max_multiplier)))
-            r = random.randint(R, high)
-        else:
-            r = r_from_ratio
-
-        r = max(2, r)
-
-    search_radius = 20 if constraint_mode is RandomConstraintMode.WILD else 14
-    for delta in range(0, search_radius + 1):
-        for sign in (-1, 1):
-            r_candidate = r + sign * delta
-            if r_candidate > 1:
-                if math.gcd(R, r_candidate) >= min_gcd:
-                    return r_candidate
-
-    return r
-
-
-def random_pen_offset(
-    rolling_circle_radius: int,
-    complexity: RandomComplexity,
-    constraint_mode: RandomConstraintMode,
-) -> int:
-    """Generate a random pen offset, optionally allowing d > r in extended and wild modes."""
-    r = rolling_circle_radius
-
-    if complexity is RandomComplexity.SIMPLE:
-        low_factor, high_factor = 0.45, 1.05
-    elif complexity is RandomComplexity.DENSE:
-        low_factor, high_factor = 0.9, 2.2
-    else:
-        low_factor, high_factor = 0.6, 1.6
-
-    if constraint_mode is RandomConstraintMode.PHYSICAL:
-        max_factor = 1.3
-    elif constraint_mode is RandomConstraintMode.WILD:
-        max_factor = 3.0
-    else:
-        max_factor = 2.0
-
-    a = random.uniform(low_factor, high_factor)
-    b = random.uniform(low_factor, high_factor)
-    factor = (a + b) / 2
-
-    d = int(round(r * factor))
-    d = max(1, min(d, int(round(r * max_factor))))
-    return d
-
-
-def create_custom_curve(
-    previous_curve: SpiroCurve | None,
-    previous_random_complexity: RandomComplexity | None,
-    previous_random_constraint_mode: RandomConstraintMode | None,
-) -> tuple[SpiroCurve, RandomComplexity, RandomConstraintMode]:
-    """Prompt the user for all curve parameters and build a SpiroCurve.
-
-    Args:
-        previous_curve: Last custom curve used for providing default values, or None.
-        previous_random_complexity: Last used random complexity, or None.
-        previous_random_constraint_mode: Last used random constraint mode, or None.
-
-    Returns:
-        A tuple of (SpiroCurve, RandomComplexity, RandomConstraintMode) created from user input.
-    """
-    if previous_curve is not None:
-        fixed_circle_radius_default = previous_curve.fixed_circle_radius
-        rolling_circle_radius_default = previous_curve.rolling_circle_radius
-        pen_offset_default = previous_curve.pen_offset
-        curve_type_default = previous_curve.curve_type
-        color_default = previous_curve.color
-        line_width_default = previous_curve.line_width
-    else:
-        fixed_circle_radius_default = None
-        rolling_circle_radius_default = None
-        pen_offset_default = None
-        curve_type_default = None
-        color_default = "black"
-        line_width_default = 1
-
-    random_complexity = prompt_random_complexity(
-        previous_random_complexity or RandomComplexity.MEDIUM
-    )
-    random_constraint_mode = prompt_random_constraint_mode(
-        previous_random_constraint_mode or RandomConstraintMode.EXTENDED
-    )
-
-    guide_before_fixed_radius(previous_curve)
-    fixed_circle_radius = prompt_positive_int_or_random(
-        "fixed_circle_radius",
-        default_value=fixed_circle_radius_default,
-        random_value_factory=lambda: random_fixed_circle_radius(previous_curve),
-    )
-
-    guide_before_rolling_radius(fixed_circle_radius, previous_curve)
-    rolling_circle_radius = prompt_positive_int_or_random(
-        "rolling_circle_radius",
-        default_value=rolling_circle_radius_default,
-        random_value_factory=lambda: random_rolling_circle_radius(
-            fixed_circle_radius,
-            random_complexity,
-            random_constraint_mode,
-        ),
-    )
-
-    guide_before_pen_offset(fixed_circle_radius, rolling_circle_radius, previous_curve)
-    pen_offset = prompt_positive_int_or_random(
-        "pen_offset",
-        default_value=pen_offset_default,
-        random_value_factory=lambda: random_pen_offset(
-            rolling_circle_radius,
-            random_complexity,
-            random_constraint_mode,
-        ),
-    )
-
-    curve_type = prompt_curve_type(curve_type_default)
-    color = prompt_string_with_default("color", color_default)
-    line_width = prompt_positive_int("line_width", default_value=line_width_default)
-
-    return (
-        SpiroCurve(
-            fixed_circle_radius,
-            rolling_circle_radius,
-            pen_offset,
-            curve_type,
-            color,
-            line_width,
-        ),
-        random_complexity,
-        random_constraint_mode,
-    )
-
-
-def describe_curve(curve: SpiroCurve) -> None:
-    """Print guidance about how the current parameters shape the curve.
-
-    Args:
-        curve: The spirograph curve to describe.
-    """
+def describe_curve(curve: "SpiroCurve") -> None:
     fixed = curve.fixed_circle_radius
     rolling = curve.rolling_circle_radius
     offset = curve.pen_offset
@@ -682,71 +297,39 @@ def describe_curve(curve: SpiroCurve) -> None:
         curve_kind = "rolling outside fixed circle (epitrochoid)"
 
     print("\nCurve guidance:")
-    print(f"  Radius ratio R/r: {ratio:.3f} → {ratio_desc}")
-    print(f"  Offset factor d/r: {offset_factor:.3f} → {offset_desc}")
-    print(f"  gcd(R, r): {gcd_value} → approx petals: {approx_petals}")
+    print(f"  Radius ratio R/r: {ratio:.3f} -> {ratio_desc}")
+    print(f"  Offset factor d/r: {offset_factor:.3f} -> {offset_desc}")
+    print(f"  gcd(R, r): {gcd_value} -> approx lobes: {approx_petals}")
     print(f"  Rotations of rolling circle until closure: ~{rotations_to_close}")
     print(f"  Curve type: {curve_kind}\n")
 
 
-def compute_number_of_steps_for_curve(curve: SpiroCurve) -> int:
-    """Compute an adaptive number of steps for sampling based on closure and potential complexity.
-
-    Args:
-        curve: Curve to be drawn.
-
-    Returns:
-        The number of steps to use for sampling points.
-    """
-    gcd_value = math.gcd(curve.fixed_circle_radius, curve.rolling_circle_radius)
-    closure_rotations = curve.rolling_circle_radius // gcd_value
-    scaled_steps = max(NUMBER_OF_STEPS, closure_rotations * 300)
-    return min(20000, scaled_steps)
-
-
-def guide_before_fixed_radius(previous_curve: SpiroCurve | None) -> None:
-    """Provide brief guidance before entering the fixed circle radius (R).
-
-    Args:
-        previous_curve: The last curve used, if any.
-    """
+def guide_before_fixed_radius(previous_curve: "SpiroCurve | None") -> None:
     print("\nFixed circle radius (R):")
+
     if previous_curve is None:
         print(
-            "  R controls overall size. Larger R fills more of the window; smaller R keeps the pattern more compact."
+            "  R controls overall size. Larger R fills more of the window; smaller R keeps the pattern compact."
         )
         print(
-            "  This parameter scales the entire figure uniformly. Try values in the 100–300 range for a typical window."
+            "  This parameter scales the entire figure uniformly. Typical range: 100-320."
         )
         print(
-            "  Enter a number, press Enter for the default, or type 'r' for a random value."
+            "  Enter a number, press Enter for the default, or type 'r' for a random suggestion."
         )
         return
 
     prev_R = previous_curve.fixed_circle_radius
-
-    print(f"  Previous run: R = {prev_R}.")
+    print(f"  Default R is {prev_R}.")
+    print(f"  Higher than {prev_R} scales the pattern up; lower scales it down.")
     print(
-        "  Using the default value will produce a curve with a similar overall size to the last run."
-    )
-    print(
-        f"  Choosing R larger than {prev_R} will scale the pattern up uniformly; choosing R smaller will scale it down."
-    )
-    print(
-        "  Enter a number, press Enter for the default, or type 'r' for a random value."
+        "  Enter a number, press Enter for the default, or type 'r' for a random suggestion."
     )
 
 
 def guide_before_rolling_radius(
-    fixed_circle_radius: int,
-    previous_curve: SpiroCurve | None,
+    fixed_circle_radius: int, previous_curve: "SpiroCurve | None"
 ) -> None:
-    """Provide brief guidance before entering the rolling circle radius (r).
-
-    Args:
-        fixed_circle_radius: The selected fixed circle radius R for this run.
-        previous_curve: The last curve used, if any.
-    """
     R = fixed_circle_radius
     print("\nRolling circle radius (r):")
     print(f"  Current R = {R}.")
@@ -754,59 +337,45 @@ def guide_before_rolling_radius(
     if previous_curve is None:
         print(
             "  In a physical kit, hypotrochoids typically use r < R, but this program allows any positive r.\n"
-            "Smaller r (relative to R) gives more lobes and a denser pattern.\n"
-            "Values near R or above R often create more dramatic loops and self-intersections."
+            "  Smaller r (relative to R) gives more lobes and a denser pattern.\n"
+            "  Values near R or above R often create more dramatic loops and self-intersections."
         )
         print(
-            "  Ratios R/r that are non-integers tend to look more intricate and dense than simple integer ratios."
-        )
-        print(
-            "  Enter a number, press Enter for the default, or type 'r' for a random value."
+            "  Enter a number, press Enter for the default, or type 'r' for a random suggestion."
         )
         return
 
     prev_r = previous_curve.rolling_circle_radius
-
     ratio_if_unchanged = R / prev_r
     gcd_if_unchanged = math.gcd(R, prev_r)
     petals_if_unchanged = R // gcd_if_unchanged
     rotations_if_unchanged = prev_r // gcd_if_unchanged
 
     print(
-        f"  Default r is {prev_r}. With current R, R/r would be ≈ {ratio_if_unchanged:.3f}."
+        f"  Default r is {prev_r}. With current R, R/r would be ~{ratio_if_unchanged:.3f}."
     )
     print(
-        f"  That would give roughly {petals_if_unchanged} lobes and close after about {rotations_if_unchanged} rotations."
+        f"  That implies ~{petals_if_unchanged} lobes and closes after ~{rotations_if_unchanged} rotations."
     )
 
-    if abs(ratio_if_unchanged - round(ratio_if_unchanged)) < 1e-6:
-        print("  Integer-like R/r → clean symmetry, less visual noise.")
+    if abs(ratio_if_unchanged - round(ratio_if_unchanged)) < 1e-9:
+        print("  Integer-like R/r -> clean symmetry.")
     else:
-        print("  Non-integer R/r → more intricate, visually denser pattern.")
+        print("  Non-integer R/r -> denser, more intricate patterns.")
 
     print(
-        f"  Choosing r smaller than {prev_r} increases R/r → more lobes and a denser figure."
+        f"  Smaller than {prev_r} increases R/r (more lobes); larger decreases R/r (fewer lobes)."
     )
     print(
-        f"  Choosing r larger than {prev_r} decreases R/r → fewer lobes and a simpler figure."
-    )
-    print(
-        "  Enter a number, press Enter for the default, or type 'r' for a random value."
+        "  Enter a number, press Enter for the default, or type 'r' for a random suggestion."
     )
 
 
 def guide_before_pen_offset(
     fixed_circle_radius: int,
     rolling_circle_radius: int,
-    previous_curve: SpiroCurve | None,
+    previous_curve: "SpiroCurve | None",
 ) -> None:
-    """Provide brief guidance before entering the pen offset (d).
-
-    Args:
-        fixed_circle_radius: The selected fixed circle radius R for this run.
-        rolling_circle_radius: The selected rolling circle radius r for this run.
-        previous_curve: The last curve used, if any.
-    """
     R = fixed_circle_radius
     r = rolling_circle_radius
 
@@ -818,29 +387,21 @@ def guide_before_pen_offset(
     approx_petals = R // gcd_value
     rotations_to_close = r // gcd_value
 
-    if ratio < 2.0:
-        ratio_desc = "very simple (few large lobes)"
-    elif ratio < 4.0:
-        ratio_desc = "moderate complexity (visible lobes)"
+    if abs(ratio - round(ratio)) < 1e-9:
+        ratio_symmetry = "integer-like ratio -> cleaner symmetry"
     else:
-        ratio_desc = "high complexity (many lobes; dense pattern)"
+        ratio_symmetry = "non-integer ratio -> denser / more intricate"
 
-    if abs(ratio - round(ratio)) < 1e-6:
-        ratio_symmetry = "integer-like ratio → cleaner symmetry"
-    else:
-        ratio_symmetry = "non-integer ratio → more intricate/dense"
-
-    print(f"  So far: R/r ≈ {ratio:.3f} → {ratio_desc}; {ratio_symmetry}.")
-    print(f"  So far: gcd(R, r) = {gcd_value} → approx lobes ≈ {approx_petals}.")
-    print(f"  So far: closes after ~{rotations_to_close} rolling-circle rotations.\n")
+    print(f"  So far: R/r ~{ratio:.3f} ({ratio_symmetry}).")
+    print(f"  So far: gcd(R, r) = {gcd_value} -> approx lobes ~{approx_petals}.")
+    print(f"  So far: closes after ~{rotations_to_close} rolling-circle rotations.")
 
     if previous_curve is None:
         print(
-            "  The key quantity is d/r: small d/r → softer, low-amplitude petals;\n"
-            "d/r around 1 → classic spiky look; d/r > 1 → loops and more chaotic detail."
+            "  d/r is the key: small -> soft; near 1 -> spiky; above 1 -> loops and self-intersections."
         )
         print(
-            "  Enter a number, press Enter for the default, or type 'r' for a random value."
+            "  Enter a number, press Enter for the default, or type 'r' for a random suggestion."
         )
         return
 
@@ -848,96 +409,205 @@ def guide_before_pen_offset(
     offset_factor_if_unchanged = prev_d / r
 
     print(
-        f"  Default d is {prev_d}. With current r, d/r would be ≈ {offset_factor_if_unchanged:.3f}."
+        f"  Default d is {prev_d}. With current r, d/r would be ~{offset_factor_if_unchanged:.3f}."
+    )
+    print(
+        f"  Smaller than {prev_d} softens (lower d/r); larger exaggerates spikes/loops (higher d/r)."
+    )
+    print(
+        "  Enter a number, press Enter for the default, or type 'r' for a random suggestion."
     )
 
-    if offset_factor_if_unchanged < 0.3:
-        desc = "very soft, low-amplitude petals"
-    elif offset_factor_if_unchanged < 0.9:
-        desc = "softer petals with less extreme spikes"
-    elif offset_factor_if_unchanged < 1.1:
-        desc = "a classic spiky outline"
-    elif offset_factor_if_unchanged < 1.6:
-        desc = "complex loops and self-intersections"
+
+# ---------------- randomness helpers ---------------- #
+
+
+def evolve_value(
+    previous: int | None,
+    base_min: int,
+    base_max: int,
+    evolution: RandomEvolutionMode,
+    jump_scale: float = 0.5,
+) -> int:
+    if previous is None or evolution is RandomEvolutionMode.RANDOM:
+        return random.randint(base_min, base_max)
+
+    if evolution is RandomEvolutionMode.JUMP and random.random() < 0.25:
+        span = base_max - base_min
+        jump = int(span * jump_scale)
+        return max(base_min, min(base_max, previous + random.randint(-jump, jump)))
+
+    span = base_max - base_min
+    drift = max(3, int(span * 0.25))
+    return max(base_min, min(base_max, previous + random.randint(-drift, drift)))
+
+
+def random_fixed_circle_radius(
+    prev: SpiroCurve | None, evolution: RandomEvolutionMode
+) -> int:
+    base_min, base_max = 100, 320
+    prev_val = prev.fixed_circle_radius if prev else None
+    return evolve_value(prev_val, base_min, base_max, evolution)
+
+
+def random_rolling_circle_radius(
+    R: int,
+    prev: SpiroCurve | None,
+    complexity: RandomComplexity,
+    constraint: RandomConstraintMode,
+    evolution: RandomEvolutionMode,
+) -> int:
+    prev_r = prev.rolling_circle_radius if prev else None
+
+    if complexity is RandomComplexity.SIMPLE:
+        ratio_min, ratio_max = 2.5, 4.5
+    elif complexity is RandomComplexity.DENSE:
+        ratio_min, ratio_max = 5.0, 14.0
     else:
-        desc = "very loopy, chaotic-looking structures"
+        ratio_min, ratio_max = 3.5, 9.0
 
-    print(f"  That setting would give {desc}.")
-    print(
-        f"  Choosing d smaller than {prev_d} will generally soften the pattern (lower d/r)."
-    )
-    print(
-        f"  Choosing d larger than {prev_d} will exaggerate spikes/loops (higher d/r)."
-    )
-    print(
-        "  Enter a number, press Enter for the default, or type 'r' for a random value."
-    )
+    if constraint is RandomConstraintMode.PHYSICAL:
+        max_r = R - 1
+    elif constraint is RandomConstraintMode.EXTENDED:
+        max_r = int(R * 2.0)
+    else:
+        max_r = int(R * 3.0)
+
+    base_min = 2
+    base_max = max_r
+
+    r = evolve_value(prev_r, base_min, base_max, evolution)
+    return max(2, r)
 
 
-def setup_screen() -> tuple[turtle._Screen, turtle.Turtle]:
-    """Initialize the turtle screen and drawing turtle.
+def random_pen_offset(
+    r: int,
+    prev: SpiroCurve | None,
+    complexity: RandomComplexity,
+    constraint: RandomConstraintMode,
+    evolution: RandomEvolutionMode,
+) -> int:
+    prev_d = prev.pen_offset if prev else None
 
-    Returns:
-        A tuple of (screen, turtle_instance) ready for drawing.
-    """
+    if complexity is RandomComplexity.SIMPLE:
+        max_factor = 1.2
+    elif complexity is RandomComplexity.DENSE:
+        max_factor = 2.2
+    else:
+        max_factor = 1.6
+
+    if constraint is RandomConstraintMode.WILD:
+        max_factor *= 1.5
+
+    base_min = 1
+    base_max = int(r * max_factor)
+
+    return evolve_value(prev_d, base_min, base_max, evolution)
+
+
+# ---------------- main flow ---------------- #
+
+
+def compute_batch_size(speed: int) -> int:
+    return 2 ** max(0, speed - 1)
+
+
+def compute_steps(curve: SpiroCurve) -> int:
+    gcd_value = math.gcd(curve.fixed_circle_radius, curve.rolling_circle_radius)
+    rotations = curve.rolling_circle_radius // gcd_value
+    return min(20000, max(NUMBER_OF_STEPS, rotations * 300))
+
+
+def setup_screen():
     screen = turtle.Screen()
-    screen.setup(width=SCREEN_SIZE, height=SCREEN_SIZE)
-    screen.title("Spirograph Simulator")
-    screen.bgcolor("white")
+    screen.setup(SCREEN_SIZE, SCREEN_SIZE)
     screen.tracer(0, 0)
 
-    turtle_obj = turtle.Turtle()
-    turtle_obj.hideturtle()
-    turtle_obj.speed(0)
+    t = turtle.Turtle()
+    t.hideturtle()
+    t.speed(0)
 
-    return screen, turtle_obj
+    return screen, t
 
 
 def main() -> None:
-    """Entry point for the spirograph simulator."""
     screen, turtle_obj = setup_screen()
-    drawing_speed = 1
-    last_custom_curve: SpiroCurve | None = None
-    last_random_complexity: RandomComplexity | None = None
-    last_random_constraint_mode: RandomConstraintMode | None = None
+
+    last_curve: SpiroCurve | None = None
+    last_complexity = RandomComplexity.MEDIUM
+    last_constraint = RandomConstraintMode.EXTENDED
+    last_evolution = RandomEvolutionMode.DRIFT
+    drawing_speed = 5
 
     while True:
-        spiro_curve, last_random_complexity, last_random_constraint_mode = (
-            create_custom_curve(
-                last_custom_curve,
-                last_random_complexity,
-                last_random_constraint_mode,
-            )
+        complexity = prompt_enum("Random Complexity", RandomComplexity, last_complexity)
+        constraint = prompt_enum(
+            "Constraint Mode", RandomConstraintMode, last_constraint
         )
-        last_custom_curve = spiro_curve
+        evolution = prompt_enum("Evolution Mode", RandomEvolutionMode, last_evolution)
 
-        describe_curve(spiro_curve)
+        guide_before_fixed_radius(last_curve)
+        R = prompt_positive_int_or_random(
+            "fixed_circle_radius",
+            last_curve.fixed_circle_radius if last_curve else None,
+            lambda: random_fixed_circle_radius(last_curve, evolution),
+        )
 
-        drawing_speed = prompt_drawing_speed(drawing_speed)
+        guide_before_rolling_radius(R, last_curve)
+        r = prompt_positive_int_or_random(
+            "rolling_circle_radius",
+            last_curve.rolling_circle_radius if last_curve else None,
+            lambda: random_rolling_circle_radius(
+                R, last_curve, complexity, constraint, evolution
+            ),
+        )
+
+        guide_before_pen_offset(R, r, last_curve)
+        d = prompt_positive_int_or_random(
+            "pen_offset",
+            last_curve.pen_offset if last_curve else None,
+            lambda: random_pen_offset(r, last_curve, complexity, constraint, evolution),
+        )
+
+        curve_type_default = (
+            last_curve.curve_type if last_curve else SpiroType.HYPOTROCHOID
+        )
+        curve_type = prompt_enum("Curve Type", SpiroType, curve_type_default)
+
+        color_default = last_curve.color if last_curve else "black"
+        color = prompt_string_with_default("color", color_default)
+
+        line_width_default = last_curve.line_width if last_curve else 1
+        line_width = prompt_positive_int("line_width", default_value=line_width_default)
+
+        curve = SpiroCurve(R, r, d, curve_type, color, line_width)
 
         print("\nSelected parameters:")
-        print(f"  Fixed Circle Radius: {spiro_curve.fixed_circle_radius}")
-        print(f"  Rolling Circle Radius: {spiro_curve.rolling_circle_radius}")
-        print(f"  Pen Offset: {spiro_curve.pen_offset}")
-        print(f"  Curve Type: {spiro_curve.curve_type.value}")
-        print(f"  Color: {spiro_curve.color}")
-        print(f"  Line Width: {spiro_curve.line_width}")
+        print(f"  Fixed Circle Radius (R): {curve.fixed_circle_radius}")
+        print(f"  Rolling Circle Radius (r): {curve.rolling_circle_radius}")
+        print(f"  Pen Offset (d): {curve.pen_offset}")
+        print(f"  Curve Type: {curve.curve_type.value}")
+        print(f"  Color: {curve.color}")
+        print(f"  Line Width: {curve.line_width}")
+
+        describe_curve(curve)
+
+        drawing_speed = prompt_drawing_speed(drawing_speed)
         print(f"  Drawing Speed: {drawing_speed}")
 
         turtle_obj.clear()
-        turtle_obj.penup()
-        turtle_obj.goto(0.0, 0.0)
-        turtle_obj.pendown()
+        steps = compute_steps(curve)
+        curve.draw(turtle_obj, steps, drawing_speed)
 
-        number_of_steps = compute_number_of_steps_for_curve(spiro_curve)
-        spiro_curve.draw(turtle_obj, number_of_steps, drawing_speed)
+        last_curve = curve
+        last_complexity = complexity
+        last_constraint = constraint
+        last_evolution = evolution
 
         print()
         if not ask_yes_no("Draw a new curve? (y/n): "):
             break
 
-    print("Done.")
-    screen.update()
     screen.bye()
 
 
