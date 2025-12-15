@@ -1,21 +1,27 @@
 # Digital Spirograph
 
-Currently a work in progress, this project aims to create a feature rich 
-digital spirograph with functionality far beyond that of the classic 
-spirograph kit.
+This project aims to create a feature-rich digital spirograph with functionality
+far beyond that of the classic real-world spirograph kit.
 
-## The initial version will:
-- Have a command line interface for configuring and running the spirograph.
-- Support circular tracks
-- Support circular rollers
-- Support random curve inputs based on user preferences.
-- Use Python Turtle Graphics to draw the spirograph curves.
+## v0
 
-## Future versions may include:
+- Stateless CLI
+- Circular tracks
+- Circular rollers
+- Random curve inputs
+- Python Turtle Graphics
+
+## v1 and beyond
+
 - Non-circular tracks
 - Non-circular rollers
-- Multiple curves in a single spirograph
+- Multiple curves in a single drawing
 - Curve configuration persistence
 - Additional graphical output options like SVG, JSON API for embedding in 
   websites, animated GIFs, video files, etc.
-- Web-based GUI
+- GUI options: CLI, Desktop, Web
+
+## v1.0 (MVP)
+
+- All v0 features
+
