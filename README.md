@@ -13,6 +13,7 @@ far beyond that of the classic real-world spirograph kit.
 
 ## v1 and beyond
 
+- Plugable architecture
 - Non-circular tracks
 - Non-circular rollers
 - Multiple curves in a single drawing
@@ -23,5 +24,5 @@ far beyond that of the classic real-world spirograph kit.
 
 ## v1.0 (MVP)
 
+- Plugable architecture
 - All v0 features
-
