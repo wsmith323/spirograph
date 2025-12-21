@@ -36,9 +36,6 @@ class RandomEvolutionMode(Enum):
     JUMP = "jump"
 
 
-# --------- Color mode enum ---------
-
-
 class ColorMode(Enum):
     FIXED = "fixed"
     RANDOM_PER_RUN = "random_per_run"
@@ -53,10 +50,16 @@ class SessionState:
     random_constraint_mode: RandomConstraintMode = RandomConstraintMode.EXTENDED
     random_evolution_mode: RandomEvolutionMode = RandomEvolutionMode.DRIFT
     curve_type: SpiroType = SpiroType.HYPOTROCHOID
+
     color_mode: ColorMode = ColorMode.FIXED
     color: str = "black"
     line_width: int = 1
     drawing_speed: int = 5
+
+    locked_fixed_circle_radius: int | None = None
+    locked_rolling_circle_radius: int | None = None
+    locked_pen_offset: int | None = None
+
     last_curve: "SpiroCurve | None" = None
 
 
@@ -67,7 +70,7 @@ class SpiroCurve:
         rolling_circle_radius: int,
         pen_offset: int,
         curve_type: SpiroType,
-        color: str,
+        color: str | tuple[int, int, int],
         line_width: int,
     ) -> None:
         self.fixed_circle_radius = fixed_circle_radius
@@ -115,6 +118,9 @@ class SpiroCurve:
         screen = turtle_obj.getscreen()
         batch = compute_batch_size(speed)
         points = self.generate_points(steps)
+
+        if not points:
+            return
 
         turtle_obj.penup()
         turtle_obj.color(self.color)
@@ -194,10 +200,7 @@ def prompt_enum(label: str, enum_cls, default):
         print("Invalid choice.")
 
 
-def prompt_positive_int(
-    identifier: str,
-    default_value: int | None = None,
-) -> int:  # type: ignore
+def prompt_positive_int(identifier: str, default_value: int | None = None) -> int:
     label = make_prompt_label(identifier)
 
     while True:
@@ -260,7 +263,7 @@ def prompt_positive_int_or_random(
         return value
 
 
-def prompt_drawing_speed(current_speed: int) -> int:  # type: ignore
+def prompt_drawing_speed(current_speed: int) -> int:
     label = "Drawing speed [1 (slow) - 10 (fast)]"
 
     while True:
@@ -279,9 +282,6 @@ def prompt_drawing_speed(current_speed: int) -> int:  # type: ignore
             continue
 
         return parsed_value
-
-
-# --------- Non-negative float prompt ---------
 
 
 def prompt_non_negative_float(identifier: str, default_value: float) -> float:
@@ -305,14 +305,35 @@ def prompt_non_negative_float(identifier: str, default_value: float) -> float:
         return value
 
 
-def ask_yes_no(prompt_text: str) -> bool:
+def prompt_lock_value(identifier: str, current_value: int | None) -> int | None:
+    """Prompt for a lock value.
+
+    Enter a positive integer to lock to that value, or 'r' to unlock (random).
+    Press Enter to keep the current lock setting.
+    """
+    label = make_prompt_label(identifier)
+    current_display = "r" if current_value is None else str(current_value)
+
     while True:
-        raw_value = input(prompt_text).strip().lower()
-        if raw_value in ("y", "yes"):
-            return True
-        if raw_value in ("n", "no"):
-            return False
-        print('Please enter "y" or "n".')
+        raw_value = (
+            input(f"{label} lock [{current_display}] (number or 'r'): ").strip().lower()
+        )
+        if raw_value == "":
+            return current_value
+        if raw_value in ("r", "rand", "random"):
+            return None
+
+        try:
+            parsed_value = int(raw_value)
+        except ValueError:
+            print("Enter a positive integer, 'r', or press Enter.")
+            continue
+
+        if parsed_value <= 0:
+            print("Please enter a positive integer.")
+            continue
+
+        return parsed_value
 
 
 # ---------------- guidance and description ---------------- #
@@ -539,9 +560,6 @@ def random_rolling_circle_radius(
     best_r: int | None = None
     best_rotations: int | None = None
 
-    # Try multiple times to find an r that closes within a manageable number of rotations.
-    # This is important when random sampling lands on near-coprime pairs (R, r), which can
-    # produce very large rotation counts and long draw times.
     for _ in range(80):
         candidate_r = evolve_value(prev_r, base_min, base_max, evolution)
         candidate_r = max(2, candidate_r)
@@ -555,7 +573,6 @@ def random_rolling_circle_radius(
         if rotations <= MAX_ROTATIONS_TO_CLOSE:
             return candidate_r
 
-    # Fall back to the best (lowest-rotation) candidate we found.
     if best_r is None:
         return max(2, evolve_value(prev_r, base_min, base_max, evolution))
 
@@ -594,6 +611,7 @@ MENU_TEXT = (
     "Next action:\n"
     "  [Enter]  Generate next random curve (same settings)\n"
     "  b        Batch: run N random curves with a pause\n"
+    "  l        Locks: set fixed values for random runs (R/r/d)\n"
     "  e        Edit R / r / d (with guidance)\n"
     "  s        Session settings (complexity, constraints, evolution, display)\n"
     "  t        Toggle curve type (hypo <-> epi)\n"
@@ -603,6 +621,18 @@ MENU_TEXT = (
 
 
 def print_session_status(session: SessionState) -> None:
+    r_lock = (
+        "r"
+        if session.locked_fixed_circle_radius is None
+        else session.locked_fixed_circle_radius
+    )
+    rr_lock = (
+        "r"
+        if session.locked_rolling_circle_radius is None
+        else session.locked_rolling_circle_radius
+    )
+    d_lock = "r" if session.locked_pen_offset is None else session.locked_pen_offset
+
     print(
         "Current: "
         f"complexity={session.random_complexity.value}, "
@@ -612,7 +642,8 @@ def print_session_status(session: SessionState) -> None:
         f"color_mode={session.color_mode.value}, "
         f"color={session.color}, "
         f"width={session.line_width}, "
-        f"speed={session.drawing_speed}"
+        f"speed={session.drawing_speed}, "
+        f"locks=R:{r_lock} r:{rr_lock} d:{d_lock}"
     )
 
 
@@ -626,9 +657,6 @@ def toggle_curve_type(current: SpiroType) -> SpiroType:
     if current is SpiroType.HYPOTROCHOID:
         return SpiroType.EPITROCHOID
     return SpiroType.HYPOTROCHOID
-
-
-# --------- Color helpers and parameter print ---------
 
 
 def random_rgb_color() -> tuple[int, int, int]:
@@ -645,34 +673,6 @@ def print_selected_parameters(curve: SpiroCurve) -> None:
     print(f"  Line Width: {curve.line_width}")
 
 
-def generate_random_curve(session: SessionState) -> SpiroCurve:
-    R = random_fixed_circle_radius(session.last_curve, session.random_evolution_mode)
-    r = random_rolling_circle_radius(
-        R,
-        session.last_curve,
-        session.random_complexity,
-        session.random_constraint_mode,
-        session.random_evolution_mode,
-    )
-    d = random_pen_offset(
-        r,
-        session.last_curve,
-        session.random_complexity,
-        session.random_constraint_mode,
-        session.random_evolution_mode,
-    )
-
-    if session.color_mode is ColorMode.FIXED:
-        color = session.color
-    else:
-        color = random_rgb_color()
-
-    return SpiroCurve(R, r, d, session.curve_type, color, session.line_width)
-
-
-# --------- draw_curve with color mode support ---------
-
-
 def draw_curve(
     turtle_obj: turtle.Turtle,
     curve: SpiroCurve,
@@ -686,7 +686,6 @@ def draw_curve(
         curve.draw(turtle_obj, steps, drawing_speed)
         return
 
-    # RANDOM_PER_ROTATION: draw in segments, changing color once per rolling-circle rotation.
     screen = turtle_obj.getscreen()
     batch = compute_batch_size(drawing_speed)
     points = curve.generate_points(steps)
@@ -719,6 +718,52 @@ def draw_curve(
         screen.update()
 
     screen.update()
+
+
+def generate_random_curve(session: SessionState) -> SpiroCurve:
+    if session.locked_fixed_circle_radius is None:
+        R = random_fixed_circle_radius(
+            session.last_curve, session.random_evolution_mode
+        )
+    else:
+        R = session.locked_fixed_circle_radius
+
+    if session.locked_rolling_circle_radius is None:
+        r = random_rolling_circle_radius(
+            R,
+            session.last_curve,
+            session.random_complexity,
+            session.random_constraint_mode,
+            session.random_evolution_mode,
+        )
+    else:
+        r = session.locked_rolling_circle_radius
+
+    if session.locked_pen_offset is None:
+        d = random_pen_offset(
+            r,
+            session.last_curve,
+            session.random_complexity,
+            session.random_constraint_mode,
+            session.random_evolution_mode,
+        )
+    else:
+        d = session.locked_pen_offset
+
+    if session.locked_rolling_circle_radius is not None:
+        rotations = r // math.gcd(R, r)
+        if rotations > MAX_ROTATIONS_TO_CLOSE:
+            print(
+                f"Warning: locked r produces {rotations} rotations (> {MAX_ROTATIONS_TO_CLOSE}). "
+                "This may be slow. Consider unlocking r or choosing a different value."
+            )
+
+    if session.color_mode is ColorMode.FIXED:
+        color = session.color
+    else:
+        color = random_rgb_color()
+
+    return SpiroCurve(R, r, d, session.curve_type, color, session.line_width)
 
 
 def edit_geometry(session: SessionState) -> SpiroCurve:
@@ -759,6 +804,7 @@ def edit_geometry(session: SessionState) -> SpiroCurve:
         ),
     )
 
+    # Manual edit uses the session's configured color. (ColorMode still affects random runs.)
     return SpiroCurve(R, r, d, session.curve_type, session.color, session.line_width)
 
 
@@ -767,20 +813,36 @@ def edit_session_settings(session: SessionState) -> None:
         "Random Complexity", RandomComplexity, session.random_complexity
     )
     session.random_constraint_mode = prompt_enum(
-        "Constraint Mode",
-        RandomConstraintMode,
-        session.random_constraint_mode,
+        "Constraint Mode", RandomConstraintMode, session.random_constraint_mode
     )
     session.random_evolution_mode = prompt_enum(
         "Evolution Mode", RandomEvolutionMode, session.random_evolution_mode
     )
+
     session.color_mode = prompt_enum("Color Mode", ColorMode, session.color_mode)
     if session.color_mode is ColorMode.FIXED:
         session.color = prompt_string_with_default("color", session.color)
+
     session.line_width = prompt_positive_int(
         "line_width", default_value=session.line_width
     )
     session.drawing_speed = prompt_drawing_speed(session.drawing_speed)
+
+
+def edit_locks(session: SessionState) -> None:
+    print("\nLocks for random runs:")
+    print("  Set a number to lock a value during random runs. Enter 'r' to unlock.")
+    print("  Press Enter to keep the current lock setting.\n")
+
+    session.locked_fixed_circle_radius = prompt_lock_value(
+        "fixed_circle_radius", session.locked_fixed_circle_radius
+    )
+    session.locked_rolling_circle_radius = prompt_lock_value(
+        "rolling_circle_radius", session.locked_rolling_circle_radius
+    )
+    session.locked_pen_offset = prompt_lock_value(
+        "pen_offset", session.locked_pen_offset
+    )
 
 
 def compute_batch_size(speed: int) -> int:
@@ -844,10 +906,13 @@ def main() -> None:
 
             continue
 
+        if command == "l":
+            edit_locks(session)
+            continue
+
         if command == "t":
             session.curve_type = toggle_curve_type(session.curve_type)
             if session.last_curve is not None:
-                # Redraw the existing geometry with the new curve type.
                 curve = SpiroCurve(
                     session.last_curve.fixed_circle_radius,
                     session.last_curve.rolling_circle_radius,
@@ -872,9 +937,8 @@ def main() -> None:
             draw_curve(turtle_obj, curve, session.drawing_speed, session.color_mode)
             continue
 
-        # Default action: Enter (or any unrecognized input) generates the next random curve.
         if command != "":
-            print("Unknown command. Press Enter for next random, or use e/s/t/p/q.")
+            print("Unknown command. Press Enter for next random, or use b/l/e/s/t/p/q.")
             continue
 
         curve = generate_random_curve(session)
