@@ -40,19 +40,21 @@ class ColorMode(Enum):
     FIXED = "fixed"
     RANDOM_PER_RUN = "random_per_run"
     RANDOM_PER_ROTATION = "random_per_rotation"
+    RANDOM_EVERY_N_ROTATIONS = "random_every_n_rotations"
 
 
 @dataclass
 class SessionState:
     """In-memory session state for a single program run (no persistence)."""
 
-    random_complexity: RandomComplexity = RandomComplexity.MEDIUM
+    random_complexity: RandomComplexity = RandomComplexity.SIMPLE
     random_constraint_mode: RandomConstraintMode = RandomConstraintMode.EXTENDED
     random_evolution_mode: RandomEvolutionMode = RandomEvolutionMode.DRIFT
     curve_type: SpiroType = SpiroType.HYPOTROCHOID
 
-    color_mode: ColorMode = ColorMode.FIXED
+    color_mode: ColorMode = ColorMode.RANDOM_EVERY_N_ROTATIONS
     color: str = "black"
+    rotations_per_color: int = 42
     line_width: int = 1
     drawing_speed: int = 5
 
@@ -167,6 +169,7 @@ def prompt_enum(label: str, enum_cls, default):
             ColorMode.FIXED: "Use the configured color for all drawing.",
             ColorMode.RANDOM_PER_RUN: "Choose a random color for each new curve.",
             ColorMode.RANDOM_PER_ROTATION: "Change to a new random color each rolling-circle rotation.",
+            ColorMode.RANDOM_EVERY_N_ROTATIONS: "Change to a new random color every N rolling-circle rotations.",
         },
     }
 
@@ -678,11 +681,15 @@ def draw_curve(
     curve: SpiroCurve,
     drawing_speed: int,
     color_mode: ColorMode,
+    rotations_per_color: int,
 ) -> None:
     turtle_obj.clear()
     steps = compute_steps(curve)
 
-    if color_mode is not ColorMode.RANDOM_PER_ROTATION:
+    if (
+        color_mode is not ColorMode.RANDOM_PER_ROTATION
+        and color_mode is not ColorMode.RANDOM_EVERY_N_ROTATIONS
+    ):
         curve.draw(turtle_obj, steps, drawing_speed)
         return
 
@@ -697,7 +704,13 @@ def draw_curve(
     rotations_to_close = curve.rolling_circle_radius // gcd_value
     rotations_to_close = max(1, rotations_to_close)
 
-    segment_size = max(2, len(points) // rotations_to_close)
+    base_segment_size = max(2, len(points) // rotations_to_close)
+
+    if color_mode is ColorMode.RANDOM_PER_ROTATION:
+        segment_size = base_segment_size
+    else:
+        # RANDOM_EVERY_N_ROTATIONS
+        segment_size = base_segment_size * max(1, rotations_per_color)
 
     turtle_obj.penup()
     turtle_obj.pensize(curve.line_width)
@@ -822,6 +835,11 @@ def edit_session_settings(session: SessionState) -> None:
     session.color_mode = prompt_enum("Color Mode", ColorMode, session.color_mode)
     if session.color_mode is ColorMode.FIXED:
         session.color = prompt_string_with_default("color", session.color)
+    elif session.color_mode is ColorMode.RANDOM_EVERY_N_ROTATIONS:
+        session.rotations_per_color = prompt_positive_int(
+            "rotations_per_color",
+            default_value=session.rotations_per_color,
+        )
 
     session.line_width = prompt_positive_int(
         "line_width", default_value=session.line_width
@@ -901,7 +919,13 @@ def main() -> None:
 
                 print_selected_parameters(curve)
                 describe_curve(curve)
-                draw_curve(turtle_obj, curve, session.drawing_speed, session.color_mode)
+                draw_curve(
+                    turtle_obj,
+                    curve,
+                    session.drawing_speed,
+                    session.color_mode,
+                    session.rotations_per_color,
+                )
                 time.sleep(pause_seconds)
 
             continue
@@ -922,7 +946,13 @@ def main() -> None:
                     session.line_width,
                 )
                 session.last_curve = curve
-                draw_curve(turtle_obj, curve, session.drawing_speed, session.color_mode)
+                draw_curve(
+                    turtle_obj,
+                    curve,
+                    session.drawing_speed,
+                    session.color_mode,
+                    session.rotations_per_color,
+                )
             continue
 
         if command == "s":
@@ -934,7 +964,13 @@ def main() -> None:
             session.last_curve = curve
             print_selected_parameters(curve)
             describe_curve(curve)
-            draw_curve(turtle_obj, curve, session.drawing_speed, session.color_mode)
+            draw_curve(
+                turtle_obj,
+                curve,
+                session.drawing_speed,
+                session.color_mode,
+                session.rotations_per_color,
+            )
             continue
 
         if command != "":
@@ -945,7 +981,13 @@ def main() -> None:
         session.last_curve = curve
         print_selected_parameters(curve)
         describe_curve(curve)
-        draw_curve(turtle_obj, curve, session.drawing_speed, session.color_mode)
+        draw_curve(
+            turtle_obj,
+            curve,
+            session.drawing_speed,
+            session.color_mode,
+            session.rotations_per_color,
+        )
 
     screen.bye()
 
