@@ -1,7 +1,8 @@
 import random
 import turtle
+from dataclasses import dataclass
 from enum import Enum
-from typing import Callable, List, Tuple
+from typing import Callable
 
 import math
 
@@ -32,6 +33,20 @@ class RandomEvolutionMode(Enum):
     JUMP = "jump"
 
 
+@dataclass
+class SessionState:
+    """In-memory session state for a single program run (no persistence)."""
+
+    random_complexity: RandomComplexity = RandomComplexity.MEDIUM
+    random_constraint_mode: RandomConstraintMode = RandomConstraintMode.EXTENDED
+    random_evolution_mode: RandomEvolutionMode = RandomEvolutionMode.DRIFT
+    curve_type: SpiroType = SpiroType.HYPOTROCHOID
+    color: str = "black"
+    line_width: int = 1
+    drawing_speed: int = 5
+    last_curve: "SpiroCurve | None" = None
+
+
 class SpiroCurve:
     def __init__(
         self,
@@ -53,9 +68,9 @@ class SpiroCurve:
         gcd_value = math.gcd(self.fixed_circle_radius, self.rolling_circle_radius)
         return 2.0 * math.pi * (self.rolling_circle_radius // gcd_value)
 
-    def generate_points(self, number_of_steps: int) -> List[Tuple[float, float]]:
+    def generate_points(self, number_of_steps: int) -> list[tuple[float, float]]:
         period = self._compute_period()
-        points: List[Tuple[float, float]] = []
+        points: list[tuple[float, float]] = []
 
         for i in range(number_of_steps + 1):
             t = (i / number_of_steps) * period
@@ -508,6 +523,131 @@ def random_pen_offset(
 # ---------------- main flow ---------------- #
 
 
+MENU_TEXT = (
+    "Next action:\n"
+    "  [Enter]  Generate next random curve (same settings)\n"
+    "  e        Edit R / r / d (with guidance)\n"
+    "  s        Session settings (complexity, constraints, evolution, display)\n"
+    "  t        Toggle curve type (hypo <-> epi)\n"
+    "  p        Print detailed analysis of current curve\n"
+    "  q        Quit"
+)
+
+
+def print_session_status(session: SessionState) -> None:
+    print(
+        "Current: "
+        f"complexity={session.random_complexity.value}, "
+        f"constraint={session.random_constraint_mode.value}, "
+        f"evolution={session.random_evolution_mode.value}, "
+        f"type={session.curve_type.value}, "
+        f"color={session.color}, "
+        f"width={session.line_width}, "
+        f"speed={session.drawing_speed}"
+    )
+
+
+def print_menu(session: SessionState) -> None:
+    print()
+    print(MENU_TEXT)
+    print_session_status(session)
+
+
+def toggle_curve_type(current: SpiroType) -> SpiroType:
+    if current is SpiroType.HYPOTROCHOID:
+        return SpiroType.EPITROCHOID
+    return SpiroType.HYPOTROCHOID
+
+
+def generate_random_curve(session: SessionState) -> SpiroCurve:
+    R = random_fixed_circle_radius(session.last_curve, session.random_evolution_mode)
+    r = random_rolling_circle_radius(
+        R,
+        session.last_curve,
+        session.random_complexity,
+        session.random_constraint_mode,
+        session.random_evolution_mode,
+    )
+    d = random_pen_offset(
+        r,
+        session.last_curve,
+        session.random_complexity,
+        session.random_constraint_mode,
+        session.random_evolution_mode,
+    )
+
+    return SpiroCurve(R, r, d, session.curve_type, session.color, session.line_width)
+
+
+def draw_curve(
+    turtle_obj: turtle.Turtle, curve: SpiroCurve, drawing_speed: int
+) -> None:
+    turtle_obj.clear()
+    steps = compute_steps(curve)
+    curve.draw(turtle_obj, steps, drawing_speed)
+
+
+def edit_geometry(session: SessionState) -> SpiroCurve:
+    previous_curve = session.last_curve
+
+    guide_before_fixed_radius(previous_curve)
+    R = prompt_positive_int_or_random(
+        "fixed_circle_radius",
+        previous_curve.fixed_circle_radius if previous_curve else None,
+        lambda: random_fixed_circle_radius(
+            previous_curve, session.random_evolution_mode
+        ),
+    )
+
+    guide_before_rolling_radius(R, previous_curve)
+    r = prompt_positive_int_or_random(
+        "rolling_circle_radius",
+        previous_curve.rolling_circle_radius if previous_curve else None,
+        lambda: random_rolling_circle_radius(
+            R,
+            previous_curve,
+            session.random_complexity,
+            session.random_constraint_mode,
+            session.random_evolution_mode,
+        ),
+    )
+
+    guide_before_pen_offset(R, r, previous_curve)
+    d = prompt_positive_int_or_random(
+        "pen_offset",
+        previous_curve.pen_offset if previous_curve else None,
+        lambda: random_pen_offset(
+            r,
+            previous_curve,
+            session.random_complexity,
+            session.random_constraint_mode,
+            session.random_evolution_mode,
+        ),
+    )
+
+    return SpiroCurve(R, r, d, session.curve_type, session.color, session.line_width)
+
+
+def edit_session_settings(session: SessionState) -> None:
+    session.random_complexity = prompt_enum(
+        "Random Complexity", RandomComplexity, session.random_complexity
+    )
+    session.random_constraint_mode = prompt_enum(
+        "Constraint Mode",
+        RandomConstraintMode,
+        session.random_constraint_mode,
+    )
+    session.random_evolution_mode = prompt_enum(
+        "Evolution Mode", RandomEvolutionMode, session.random_evolution_mode
+    )
+
+    session.color = prompt_string_with_default("color", session.color)
+    session.line_width = prompt_positive_int(
+        "line_width", default_value=session.line_width
+    )
+    session.drawing_speed = prompt_drawing_speed(session.drawing_speed)
+
+
 def compute_batch_size(speed: int) -> int:
     return 2 ** max(0, speed - 1)
 
@@ -532,55 +672,67 @@ def setup_screen():
 
 def main() -> None:
     screen, turtle_obj = setup_screen()
-
-    last_curve: SpiroCurve | None = None
-    last_complexity = RandomComplexity.MEDIUM
-    last_constraint = RandomConstraintMode.EXTENDED
-    last_evolution = RandomEvolutionMode.DRIFT
-    drawing_speed = 5
+    session = SessionState()
 
     while True:
-        complexity = prompt_enum("Random Complexity", RandomComplexity, last_complexity)
-        constraint = prompt_enum(
-            "Constraint Mode", RandomConstraintMode, last_constraint
-        )
-        evolution = prompt_enum("Evolution Mode", RandomEvolutionMode, last_evolution)
+        print_menu(session)
+        command = input("> ").strip().lower()
 
-        guide_before_fixed_radius(last_curve)
-        R = prompt_positive_int_or_random(
-            "fixed_circle_radius",
-            last_curve.fixed_circle_radius if last_curve else None,
-            lambda: random_fixed_circle_radius(last_curve, evolution),
-        )
+        if command == "q":
+            break
 
-        guide_before_rolling_radius(R, last_curve)
-        r = prompt_positive_int_or_random(
-            "rolling_circle_radius",
-            last_curve.rolling_circle_radius if last_curve else None,
-            lambda: random_rolling_circle_radius(
-                R, last_curve, complexity, constraint, evolution
-            ),
-        )
+        if command == "p":
+            if session.last_curve is None:
+                print(
+                    "No curve yet. Press Enter to generate one, or use e to edit values."
+                )
+            else:
+                describe_curve(session.last_curve)
+            continue
 
-        guide_before_pen_offset(R, r, last_curve)
-        d = prompt_positive_int_or_random(
-            "pen_offset",
-            last_curve.pen_offset if last_curve else None,
-            lambda: random_pen_offset(r, last_curve, complexity, constraint, evolution),
-        )
+        if command == "t":
+            session.curve_type = toggle_curve_type(session.curve_type)
+            if session.last_curve is not None:
+                # Redraw the existing geometry with the new curve type.
+                curve = SpiroCurve(
+                    session.last_curve.fixed_circle_radius,
+                    session.last_curve.rolling_circle_radius,
+                    session.last_curve.pen_offset,
+                    session.curve_type,
+                    session.color,
+                    session.line_width,
+                )
+                session.last_curve = curve
+                draw_curve(turtle_obj, curve, session.drawing_speed)
+            continue
 
-        curve_type_default = (
-            last_curve.curve_type if last_curve else SpiroType.HYPOTROCHOID
-        )
-        curve_type = prompt_enum("Curve Type", SpiroType, curve_type_default)
+        if command == "s":
+            edit_session_settings(session)
+            continue
 
-        color_default = last_curve.color if last_curve else "black"
-        color = prompt_string_with_default("color", color_default)
+        if command == "e":
+            curve = edit_geometry(session)
+            session.last_curve = curve
 
-        line_width_default = last_curve.line_width if last_curve else 1
-        line_width = prompt_positive_int("line_width", default_value=line_width_default)
+            print("\nSelected parameters:")
+            print(f"  Fixed Circle Radius (R): {curve.fixed_circle_radius}")
+            print(f"  Rolling Circle Radius (r): {curve.rolling_circle_radius}")
+            print(f"  Pen Offset (d): {curve.pen_offset}")
+            print(f"  Curve Type: {curve.curve_type.value}")
+            print(f"  Color: {curve.color}")
+            print(f"  Line Width: {curve.line_width}")
 
-        curve = SpiroCurve(R, r, d, curve_type, color, line_width)
+            describe_curve(curve)
+            draw_curve(turtle_obj, curve, session.drawing_speed)
+            continue
+
+        # Default action: Enter (or any unrecognized input) generates the next random curve.
+        if command != "":
+            print("Unknown command. Press Enter for next random, or use e/s/t/p/q.")
+            continue
+
+        curve = generate_random_curve(session)
+        session.last_curve = curve
 
         print("\nSelected parameters:")
         print(f"  Fixed Circle Radius (R): {curve.fixed_circle_radius}")
@@ -591,22 +743,7 @@ def main() -> None:
         print(f"  Line Width: {curve.line_width}")
 
         describe_curve(curve)
-
-        drawing_speed = prompt_drawing_speed(drawing_speed)
-        print(f"  Drawing Speed: {drawing_speed}")
-
-        turtle_obj.clear()
-        steps = compute_steps(curve)
-        curve.draw(turtle_obj, steps, drawing_speed)
-
-        last_curve = curve
-        last_complexity = complexity
-        last_constraint = constraint
-        last_evolution = evolution
-
-        print()
-        if not ask_yes_no("Draw a new curve? (y/n): "):
-            break
+        draw_curve(turtle_obj, curve, session.drawing_speed)
 
     screen.bye()
 
