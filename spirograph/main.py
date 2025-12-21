@@ -1,4 +1,5 @@
 import random
+import time
 import turtle
 from dataclasses import dataclass
 from enum import Enum
@@ -33,6 +34,15 @@ class RandomEvolutionMode(Enum):
     JUMP = "jump"
 
 
+# --------- Color mode enum ---------
+
+
+class ColorMode(Enum):
+    FIXED = "fixed"
+    RANDOM_PER_RUN = "random_per_run"
+    RANDOM_PER_ROTATION = "random_per_rotation"
+
+
 @dataclass
 class SessionState:
     """In-memory session state for a single program run (no persistence)."""
@@ -41,6 +51,7 @@ class SessionState:
     random_constraint_mode: RandomConstraintMode = RandomConstraintMode.EXTENDED
     random_evolution_mode: RandomEvolutionMode = RandomEvolutionMode.DRIFT
     curve_type: SpiroType = SpiroType.HYPOTROCHOID
+    color_mode: ColorMode = ColorMode.FIXED
     color: str = "black"
     line_width: int = 1
     drawing_speed: int = 5
@@ -143,6 +154,11 @@ def prompt_enum(label: str, enum_cls, default):
             RandomEvolutionMode.RANDOM: "Ignores the previous run; fresh random each time.",
             RandomEvolutionMode.DRIFT: "Random, but centered near the previous value.",
             RandomEvolutionMode.JUMP: "Mostly drift with occasional big changes.",
+        },
+        ColorMode: {
+            ColorMode.FIXED: "Use the configured color for all drawing.",
+            ColorMode.RANDOM_PER_RUN: "Choose a random color for each new curve.",
+            ColorMode.RANDOM_PER_ROTATION: "Change to a new random color each rolling-circle rotation.",
         },
     }
 
@@ -261,6 +277,30 @@ def prompt_drawing_speed(current_speed: int) -> int:  # type: ignore
             continue
 
         return parsed_value
+
+
+# --------- Non-negative float prompt ---------
+
+
+def prompt_non_negative_float(identifier: str, default_value: float) -> float:
+    label = make_prompt_label(identifier)
+
+    while True:
+        raw_value = input(f"{label} [{default_value}]: ").strip()
+        if raw_value == "":
+            return default_value
+
+        try:
+            value = float(raw_value)
+        except ValueError:
+            print("Please enter a valid number.")
+            continue
+
+        if value < 0:
+            print("Please enter a non-negative number.")
+            continue
+
+        return value
 
 
 def ask_yes_no(prompt_text: str) -> bool:
@@ -526,6 +566,7 @@ def random_pen_offset(
 MENU_TEXT = (
     "Next action:\n"
     "  [Enter]  Generate next random curve (same settings)\n"
+    "  b        Batch: run N random curves with a pause\n"
     "  e        Edit R / r / d (with guidance)\n"
     "  s        Session settings (complexity, constraints, evolution, display)\n"
     "  t        Toggle curve type (hypo <-> epi)\n"
@@ -541,6 +582,7 @@ def print_session_status(session: SessionState) -> None:
         f"constraint={session.random_constraint_mode.value}, "
         f"evolution={session.random_evolution_mode.value}, "
         f"type={session.curve_type.value}, "
+        f"color_mode={session.color_mode.value}, "
         f"color={session.color}, "
         f"width={session.line_width}, "
         f"speed={session.drawing_speed}"
@@ -557,6 +599,23 @@ def toggle_curve_type(current: SpiroType) -> SpiroType:
     if current is SpiroType.HYPOTROCHOID:
         return SpiroType.EPITROCHOID
     return SpiroType.HYPOTROCHOID
+
+
+# --------- Color helpers and parameter print ---------
+
+
+def random_rgb_color() -> tuple[int, int, int]:
+    return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+
+
+def print_selected_parameters(curve: SpiroCurve) -> None:
+    print("\nSelected parameters:")
+    print(f"  Fixed Circle Radius (R): {curve.fixed_circle_radius}")
+    print(f"  Rolling Circle Radius (r): {curve.rolling_circle_radius}")
+    print(f"  Pen Offset (d): {curve.pen_offset}")
+    print(f"  Curve Type: {curve.curve_type.value}")
+    print(f"  Color: {curve.color}")
+    print(f"  Line Width: {curve.line_width}")
 
 
 def generate_random_curve(session: SessionState) -> SpiroCurve:
@@ -576,15 +635,63 @@ def generate_random_curve(session: SessionState) -> SpiroCurve:
         session.random_evolution_mode,
     )
 
-    return SpiroCurve(R, r, d, session.curve_type, session.color, session.line_width)
+    if session.color_mode is ColorMode.FIXED:
+        color = session.color
+    else:
+        color = random_rgb_color()
+
+    return SpiroCurve(R, r, d, session.curve_type, color, session.line_width)
+
+
+# --------- draw_curve with color mode support ---------
 
 
 def draw_curve(
-    turtle_obj: turtle.Turtle, curve: SpiroCurve, drawing_speed: int
+    turtle_obj: turtle.Turtle,
+    curve: SpiroCurve,
+    drawing_speed: int,
+    color_mode: ColorMode,
 ) -> None:
     turtle_obj.clear()
     steps = compute_steps(curve)
-    curve.draw(turtle_obj, steps, drawing_speed)
+
+    if color_mode is not ColorMode.RANDOM_PER_ROTATION:
+        curve.draw(turtle_obj, steps, drawing_speed)
+        return
+
+    # RANDOM_PER_ROTATION: draw in segments, changing color once per rolling-circle rotation.
+    screen = turtle_obj.getscreen()
+    batch = compute_batch_size(drawing_speed)
+    points = curve.generate_points(steps)
+
+    if not points:
+        return
+
+    gcd_value = math.gcd(curve.fixed_circle_radius, curve.rolling_circle_radius)
+    rotations_to_close = curve.rolling_circle_radius // gcd_value
+    rotations_to_close = max(1, rotations_to_close)
+
+    segment_size = max(2, len(points) // rotations_to_close)
+
+    turtle_obj.penup()
+    turtle_obj.pensize(curve.line_width)
+    turtle_obj.goto(points[0])
+    turtle_obj.pendown()
+
+    index = 1
+    while index < len(points):
+        turtle_obj.color(random_rgb_color())
+        segment_end = min(len(points), index + segment_size)
+
+        while index < segment_end:
+            turtle_obj.goto(points[index])
+            if index % batch == 0:
+                screen.update()
+            index += 1
+
+        screen.update()
+
+    screen.update()
 
 
 def edit_geometry(session: SessionState) -> SpiroCurve:
@@ -640,8 +747,9 @@ def edit_session_settings(session: SessionState) -> None:
     session.random_evolution_mode = prompt_enum(
         "Evolution Mode", RandomEvolutionMode, session.random_evolution_mode
     )
-
-    session.color = prompt_string_with_default("color", session.color)
+    session.color_mode = prompt_enum("Color Mode", ColorMode, session.color_mode)
+    if session.color_mode is ColorMode.FIXED:
+        session.color = prompt_string_with_default("color", session.color)
     session.line_width = prompt_positive_int(
         "line_width", default_value=session.line_width
     )
@@ -662,6 +770,8 @@ def setup_screen():
     screen = turtle.Screen()
     screen.setup(SCREEN_SIZE, SCREEN_SIZE)
     screen.tracer(0, 0)
+
+    turtle.colormode(255)
 
     t = turtle.Turtle()
     t.hideturtle()
@@ -690,6 +800,23 @@ def main() -> None:
                 describe_curve(session.last_curve)
             continue
 
+        if command == "b":
+            count = prompt_positive_int("batch_count", default_value=10)
+            pause_seconds = prompt_non_negative_float(
+                "pause_seconds", default_value=2.0
+            )
+
+            for _ in range(count):
+                curve = generate_random_curve(session)
+                session.last_curve = curve
+
+                print_selected_parameters(curve)
+                describe_curve(curve)
+                draw_curve(turtle_obj, curve, session.drawing_speed, session.color_mode)
+                time.sleep(pause_seconds)
+
+            continue
+
         if command == "t":
             session.curve_type = toggle_curve_type(session.curve_type)
             if session.last_curve is not None:
@@ -703,7 +830,7 @@ def main() -> None:
                     session.line_width,
                 )
                 session.last_curve = curve
-                draw_curve(turtle_obj, curve, session.drawing_speed)
+                draw_curve(turtle_obj, curve, session.drawing_speed, session.color_mode)
             continue
 
         if command == "s":
@@ -713,17 +840,9 @@ def main() -> None:
         if command == "e":
             curve = edit_geometry(session)
             session.last_curve = curve
-
-            print("\nSelected parameters:")
-            print(f"  Fixed Circle Radius (R): {curve.fixed_circle_radius}")
-            print(f"  Rolling Circle Radius (r): {curve.rolling_circle_radius}")
-            print(f"  Pen Offset (d): {curve.pen_offset}")
-            print(f"  Curve Type: {curve.curve_type.value}")
-            print(f"  Color: {curve.color}")
-            print(f"  Line Width: {curve.line_width}")
-
+            print_selected_parameters(curve)
             describe_curve(curve)
-            draw_curve(turtle_obj, curve, session.drawing_speed)
+            draw_curve(turtle_obj, curve, session.drawing_speed, session.color_mode)
             continue
 
         # Default action: Enter (or any unrecognized input) generates the next random curve.
@@ -733,17 +852,9 @@ def main() -> None:
 
         curve = generate_random_curve(session)
         session.last_curve = curve
-
-        print("\nSelected parameters:")
-        print(f"  Fixed Circle Radius (R): {curve.fixed_circle_radius}")
-        print(f"  Rolling Circle Radius (r): {curve.rolling_circle_radius}")
-        print(f"  Pen Offset (d): {curve.pen_offset}")
-        print(f"  Curve Type: {curve.curve_type.value}")
-        print(f"  Color: {curve.color}")
-        print(f"  Line Width: {curve.line_width}")
-
+        print_selected_parameters(curve)
         describe_curve(curve)
-        draw_curve(turtle_obj, curve, session.drawing_speed)
+        draw_curve(turtle_obj, curve, session.drawing_speed, session.color_mode)
 
     screen.bye()
 
