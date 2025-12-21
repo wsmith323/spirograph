@@ -10,6 +10,8 @@ import math
 NUMBER_OF_STEPS = 3000
 SCREEN_SIZE = 1000
 
+MAX_ROTATIONS_TO_CLOSE = 200
+
 
 class SpiroType(Enum):
     HYPOTROCHOID = "hypotrochoid"
@@ -531,8 +533,33 @@ def random_rolling_circle_radius(
     base_min = 2
     base_max = max_r
 
-    r = evolve_value(prev_r, base_min, base_max, evolution)
-    return max(2, r)
+    def rotations_to_close_for(candidate_r: int) -> int:
+        return candidate_r // math.gcd(R, candidate_r)
+
+    best_r: int | None = None
+    best_rotations: int | None = None
+
+    # Try multiple times to find an r that closes within a manageable number of rotations.
+    # This is important when random sampling lands on near-coprime pairs (R, r), which can
+    # produce very large rotation counts and long draw times.
+    for _ in range(80):
+        candidate_r = evolve_value(prev_r, base_min, base_max, evolution)
+        candidate_r = max(2, candidate_r)
+
+        rotations = rotations_to_close_for(candidate_r)
+
+        if best_rotations is None or rotations < best_rotations:
+            best_r = candidate_r
+            best_rotations = rotations
+
+        if rotations <= MAX_ROTATIONS_TO_CLOSE:
+            return candidate_r
+
+    # Fall back to the best (lowest-rotation) candidate we found.
+    if best_r is None:
+        return max(2, evolve_value(prev_r, base_min, base_max, evolution))
+
+    return best_r
 
 
 def random_pen_offset(
