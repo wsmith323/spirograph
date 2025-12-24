@@ -10,7 +10,7 @@ import math
 NUMBER_OF_STEPS = 3000
 SCREEN_SIZE = 1000
 
-MAX_ROTATIONS_TO_CLOSE = 200
+MAX_LAPS_TO_CLOSE = 200
 
 
 class SpiroType(Enum):
@@ -39,8 +39,14 @@ class RandomEvolutionMode(Enum):
 class ColorMode(Enum):
     FIXED = "fixed"
     RANDOM_PER_RUN = "random_per_run"
-    RANDOM_PER_ROTATION = "random_per_rotation"
-    RANDOM_EVERY_N_ROTATIONS = "random_every_n_rotations"
+
+    # Lap-based: rolling circle center goes around the track (t advances by 2π per lap).
+    RANDOM_PER_LAP = "random_per_lap"
+    RANDOM_EVERY_N_LAPS = "random_every_n_laps"
+
+    # Spin-based: rolling circle spins about its own center while rolling.
+    RANDOM_PER_SPIN = "random_per_spin"
+    RANDOM_EVERY_N_SPINS = "random_every_n_spins"
 
 
 @dataclass
@@ -49,12 +55,14 @@ class SessionState:
 
     random_complexity: RandomComplexity = RandomComplexity.SIMPLE
     random_constraint_mode: RandomConstraintMode = RandomConstraintMode.EXTENDED
-    random_evolution_mode: RandomEvolutionMode = RandomEvolutionMode.DRIFT
+    random_evolution_mode: RandomEvolutionMode = RandomEvolutionMode.RANDOM
     curve_type: SpiroType = SpiroType.HYPOTROCHOID
 
-    color_mode: ColorMode = ColorMode.RANDOM_EVERY_N_ROTATIONS
+    color_mode: ColorMode = ColorMode.RANDOM_EVERY_N_LAPS
     color: str = "black"
-    rotations_per_color: int = 42
+    laps_per_color: int = 20
+    spins_per_color: int = 20
+
     line_width: int = 1
     drawing_speed: int = 5
 
@@ -168,8 +176,10 @@ def prompt_enum(label: str, enum_cls, default):
         ColorMode: {
             ColorMode.FIXED: "Use the configured color for all drawing.",
             ColorMode.RANDOM_PER_RUN: "Choose a random color for each new curve.",
-            ColorMode.RANDOM_PER_ROTATION: "Change to a new random color each rolling-circle rotation.",
-            ColorMode.RANDOM_EVERY_N_ROTATIONS: "Change to a new random color every N rolling-circle rotations.",
+            ColorMode.RANDOM_PER_LAP: "Change to a new random color each lap around the track.",
+            ColorMode.RANDOM_EVERY_N_LAPS: "Change to a new random color every N laps around the track.",
+            ColorMode.RANDOM_PER_SPIN: "Change to a new random color each spin of the rolling circle.",
+            ColorMode.RANDOM_EVERY_N_SPINS: "Change to a new random color every N spins of the rolling circle.",
         },
     }
 
@@ -352,7 +362,7 @@ def describe_curve(curve: "SpiroCurve") -> None:
     offset_factor = offset / rolling
 
     approx_petals = fixed // gcd_value
-    rotations_to_close = rolling // gcd_value
+    laps_to_close = rolling // gcd_value
 
     if ratio < 2.0:
         ratio_desc = "very simple, large rounded shape"
@@ -374,14 +384,19 @@ def describe_curve(curve: "SpiroCurve") -> None:
 
     if curve.curve_type is SpiroType.HYPOTROCHOID:
         curve_kind = "rolling inside fixed circle (hypotrochoid)"
+        spin_numerator = abs(fixed - rolling)
     else:
         curve_kind = "rolling outside fixed circle (epitrochoid)"
+        spin_numerator = fixed + rolling
+
+    spins_to_close = max(1, spin_numerator // gcd_value)
 
     print("\nCurve guidance:")
     print(f"  Radius ratio R/r: {ratio:.3f} -> {ratio_desc}")
     print(f"  Offset factor d/r: {offset_factor:.3f} -> {offset_desc}")
     print(f"  gcd(R, r): {gcd_value} -> approx lobes: {approx_petals}")
-    print(f"  Rotations of rolling circle until closure: ~{rotations_to_close}")
+    print(f"  Laps around the track until closure: ~{laps_to_close}")
+    print(f"  Rolling-circle spins about its center until closure: ~{spins_to_close}")
     print(f"  Curve type: {curve_kind}\n")
 
 
@@ -430,13 +445,13 @@ def guide_before_rolling_radius(
     ratio_if_unchanged = R / prev_r
     gcd_if_unchanged = math.gcd(R, prev_r)
     petals_if_unchanged = R // gcd_if_unchanged
-    rotations_if_unchanged = prev_r // gcd_if_unchanged
+    laps_if_unchanged = prev_r // gcd_if_unchanged
 
     print(
         f"  Default r is {prev_r}. With current R, R/r would be ~{ratio_if_unchanged:.3f}."
     )
     print(
-        f"  That implies ~{petals_if_unchanged} lobes and closes after ~{rotations_if_unchanged} rotations."
+        f"  That implies ~{petals_if_unchanged} lobes and closes after ~{laps_if_unchanged} laps around the track."
     )
 
     if abs(ratio_if_unchanged - round(ratio_if_unchanged)) < 1e-9:
@@ -466,7 +481,7 @@ def guide_before_pen_offset(
     gcd_value = math.gcd(R, r)
     ratio = R / r
     approx_petals = R // gcd_value
-    rotations_to_close = r // gcd_value
+    laps_to_close = r // gcd_value
 
     if abs(ratio - round(ratio)) < 1e-9:
         ratio_symmetry = "integer-like ratio -> cleaner symmetry"
@@ -475,7 +490,7 @@ def guide_before_pen_offset(
 
     print(f"  So far: R/r ~{ratio:.3f} ({ratio_symmetry}).")
     print(f"  So far: gcd(R, r) = {gcd_value} -> approx lobes ~{approx_petals}.")
-    print(f"  So far: closes after ~{rotations_to_close} rolling-circle rotations.")
+    print(f"  So far: closes after ~{laps_to_close} laps around the track.")
 
     if previous_curve is None:
         print(
@@ -557,23 +572,23 @@ def random_rolling_circle_radius(
     base_min = 2
     base_max = max_r
 
-    def rotations_to_close_for(candidate_r: int) -> int:
+    def laps_to_close_for(candidate_r: int) -> int:
         return candidate_r // math.gcd(R, candidate_r)
 
     best_r: int | None = None
-    best_rotations: int | None = None
+    best_laps: int | None = None
 
     for _ in range(80):
         candidate_r = evolve_value(prev_r, base_min, base_max, evolution)
         candidate_r = max(2, candidate_r)
 
-        rotations = rotations_to_close_for(candidate_r)
+        laps = laps_to_close_for(candidate_r)
 
-        if best_rotations is None or rotations < best_rotations:
+        if best_laps is None or laps < best_laps:
             best_r = candidate_r
-            best_rotations = rotations
+            best_laps = laps
 
-        if rotations <= MAX_ROTATIONS_TO_CLOSE:
+        if laps <= MAX_LAPS_TO_CLOSE:
             return candidate_r
 
     if best_r is None:
@@ -644,6 +659,8 @@ def print_session_status(session: SessionState) -> None:
         f"type={session.curve_type.value}, "
         f"color_mode={session.color_mode.value}, "
         f"color={session.color}, "
+        f"laps_per_color={session.laps_per_color}, "
+        f"spins_per_color={session.spins_per_color}, "
         f"width={session.line_width}, "
         f"speed={session.drawing_speed}, "
         f"locks=R:{r_lock} r:{rr_lock} d:{d_lock}"
@@ -681,14 +698,17 @@ def draw_curve(
     curve: SpiroCurve,
     drawing_speed: int,
     color_mode: ColorMode,
-    rotations_per_color: int,
+    laps_per_color: int,
+    spins_per_color: int,
 ) -> None:
     turtle_obj.clear()
     steps = compute_steps(curve)
 
-    if (
-        color_mode is not ColorMode.RANDOM_PER_ROTATION
-        and color_mode is not ColorMode.RANDOM_EVERY_N_ROTATIONS
+    if color_mode not in (
+        ColorMode.RANDOM_PER_LAP,
+        ColorMode.RANDOM_EVERY_N_LAPS,
+        ColorMode.RANDOM_PER_SPIN,
+        ColorMode.RANDOM_EVERY_N_SPINS,
     ):
         curve.draw(turtle_obj, steps, drawing_speed)
         return
@@ -701,16 +721,26 @@ def draw_curve(
         return
 
     gcd_value = math.gcd(curve.fixed_circle_radius, curve.rolling_circle_radius)
-    rotations_to_close = curve.rolling_circle_radius // gcd_value
-    rotations_to_close = max(1, rotations_to_close)
 
-    base_segment_size = max(2, len(points) // rotations_to_close)
+    laps_to_close = max(1, curve.rolling_circle_radius // gcd_value)
+    base_lap_segment_size = max(2, len(points) // laps_to_close)
 
-    if color_mode is ColorMode.RANDOM_PER_ROTATION:
-        segment_size = base_segment_size
+    if curve.curve_type is SpiroType.HYPOTROCHOID:
+        spin_numerator = abs(curve.fixed_circle_radius - curve.rolling_circle_radius)
     else:
-        # RANDOM_EVERY_N_ROTATIONS
-        segment_size = base_segment_size * max(1, rotations_per_color)
+        spin_numerator = curve.fixed_circle_radius + curve.rolling_circle_radius
+
+    spins_to_close = max(1, spin_numerator // gcd_value)
+    base_spin_segment_size = max(2, len(points) // spins_to_close)
+
+    if color_mode is ColorMode.RANDOM_PER_LAP:
+        segment_size = base_lap_segment_size
+    elif color_mode is ColorMode.RANDOM_EVERY_N_LAPS:
+        segment_size = base_lap_segment_size * max(1, laps_per_color)
+    elif color_mode is ColorMode.RANDOM_PER_SPIN:
+        segment_size = base_spin_segment_size
+    else:
+        segment_size = base_spin_segment_size * max(1, spins_per_color)
 
     turtle_obj.penup()
     turtle_obj.pensize(curve.line_width)
@@ -764,10 +794,10 @@ def generate_random_curve(session: SessionState) -> SpiroCurve:
         d = session.locked_pen_offset
 
     if session.locked_rolling_circle_radius is not None:
-        rotations = r // math.gcd(R, r)
-        if rotations > MAX_ROTATIONS_TO_CLOSE:
+        laps = r // math.gcd(R, r)
+        if laps > MAX_LAPS_TO_CLOSE:
             print(
-                f"Warning: locked r produces {rotations} rotations (> {MAX_ROTATIONS_TO_CLOSE}). "
+                f"Warning: locked r produces {laps} laps (> {MAX_LAPS_TO_CLOSE}). "
                 "This may be slow. Consider unlocking r or choosing a different value."
             )
 
@@ -835,10 +865,13 @@ def edit_session_settings(session: SessionState) -> None:
     session.color_mode = prompt_enum("Color Mode", ColorMode, session.color_mode)
     if session.color_mode is ColorMode.FIXED:
         session.color = prompt_string_with_default("color", session.color)
-    elif session.color_mode is ColorMode.RANDOM_EVERY_N_ROTATIONS:
-        session.rotations_per_color = prompt_positive_int(
-            "rotations_per_color",
-            default_value=session.rotations_per_color,
+    elif session.color_mode is ColorMode.RANDOM_EVERY_N_LAPS:
+        session.laps_per_color = prompt_positive_int(
+            "laps_per_color", default_value=session.laps_per_color
+        )
+    elif session.color_mode is ColorMode.RANDOM_EVERY_N_SPINS:
+        session.spins_per_color = prompt_positive_int(
+            "spins_per_color", default_value=session.spins_per_color
         )
 
     session.line_width = prompt_positive_int(
@@ -869,8 +902,8 @@ def compute_batch_size(speed: int) -> int:
 
 def compute_steps(curve: SpiroCurve) -> int:
     gcd_value = math.gcd(curve.fixed_circle_radius, curve.rolling_circle_radius)
-    rotations = curve.rolling_circle_radius // gcd_value
-    return min(20000, max(NUMBER_OF_STEPS, rotations * 300))
+    laps = curve.rolling_circle_radius // gcd_value
+    return min(20000, max(NUMBER_OF_STEPS, laps * 300))
 
 
 def setup_screen():
@@ -924,7 +957,8 @@ def main() -> None:
                     curve,
                     session.drawing_speed,
                     session.color_mode,
-                    session.rotations_per_color,
+                    session.laps_per_color,
+                    session.spins_per_color,
                 )
                 time.sleep(pause_seconds)
 
@@ -951,7 +985,8 @@ def main() -> None:
                     curve,
                     session.drawing_speed,
                     session.color_mode,
-                    session.rotations_per_color,
+                    session.laps_per_color,
+                    session.spins_per_color,
                 )
             continue
 
@@ -969,7 +1004,8 @@ def main() -> None:
                 curve,
                 session.drawing_speed,
                 session.color_mode,
-                session.rotations_per_color,
+                session.laps_per_color,
+                session.spins_per_color,
             )
             continue
 
@@ -986,7 +1022,8 @@ def main() -> None:
             curve,
             session.drawing_speed,
             session.color_mode,
-            session.rotations_per_color,
+            session.laps_per_color,
+            session.spins_per_color,
         )
 
     screen.bye()
