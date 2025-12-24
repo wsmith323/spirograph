@@ -5,22 +5,23 @@ far beyond that of the classic real-world spirograph kit.
 
 ## v0
 
+- Python Turtle Graphics
 - Stateless CLI
 - Circular tracks
 - Circular rollers
-- Random curve inputs
-- Python Turtle Graphics
+- Random curve parameters
 
 ## v1 and beyond
 
 - Plugable architecture
 - Non-circular tracks
 - Non-circular rollers
+- Non-centered curves
 - Multiple curves in a single drawing
 - Curve configuration persistence
 - Additional graphical output options like SVG, JSON API for embedding in 
   websites, animated GIFs, video files, etc.
-- GUI options: CLI, Desktop, Web
+- GUI options: Stateful CLI, Desktop, and Web
 
 ## v1.0 (MVP)
 
