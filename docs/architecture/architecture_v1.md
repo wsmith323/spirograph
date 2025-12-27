@@ -279,3 +279,34 @@ v1 is complete when:
 - The architecture supports extension without structural changes
 - All responsibilities are clearly delineated
 - No future feature requires undoing v1 decisions
+
+---
+
+## Appendix A: Concrete v1 Artifacts (Informational)
+
+The following classes and components are expected to exist in the v1 codebase. This list is informational only and does not imply implementation order.
+
+### Generation Core
+- EngineRequest
+- CircularSpiroRequest
+- CurveGenerator (ABC)
+- GeneratorRegistry
+- GeneratedCurve
+- Point2D
+- PointSpan (SpanKind: LAP, SPIN)
+
+### Rendering and Presentation
+- RenderSettings
+- RenderPlanBuilder
+- RenderPlan
+- CurveRenderer
+- TurtleGraphicsRenderer
+- RenderedCurveResult
+
+### Orchestration
+- CurveOrchestrator
+
+### CLI / Application Layer
+- GenerationSessionState
+- RenderSessionState
+- CliSessionState

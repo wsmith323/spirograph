@@ -1,68 +1,87 @@
-
-
 # AGENTS.md
 
-This file defines how automated coding agents (e.g. Codex CLI) should operate in this repository.
-It is intended to reduce drift, prevent surprise refactors, and make agent-driven changes easy to
-review and verify.
+This file defines how automated coding agents (e.g. Codex CLI) should operate in the **spirograph**
+repository in its current state (pre–v0→v1 refactor).
+The primary goal is to support incremental experimentation without destabilizing existing behavior.
+
+This file is intentionally conservative.
+
+## Current Project State (Important Context)
+
+- This project is an evolving personal prototype / proof-of-concept.
+- A larger v0→v1 refactor has NOT happened yet.
+- Existing structure, naming, and flow may not be ideal but should be preserved for now.
+- Avoid “cleanups”, reorganizations, or architectural improvements unless explicitly instructed.
 
 ## Role of the Agent
 
-The agent acts as an implementation executor, not an architect.
+The agent acts as an **implementation executor**, not an architect.
 
 - Follow the instructions in the active contract file (for example `codex/contract.md`) exactly.
-- Do not reinterpret goals or redesign architecture.
-- When in doubt, stop and ask for clarification before making changes.
+- Do NOT redesign architecture or anticipate future refactors.
+- Do NOT attempt to “prepare” the codebase for v1.
+- If instructions are unclear or incomplete, stop and ask before making changes.
 
-## Change Discipline
+## Change Discipline (Strict)
 
-- Prefer minimal, targeted diffs.
-- Do not perform unrelated refactors, cleanups, or stylistic rewrites.
-- Do not rename public APIs, classes, functions, or files unless explicitly instructed.
+- Prefer minimal, localized diffs.
+- Do not perform unrelated refactors, reorganizations, or stylistic rewrites.
+- Do not rename files, modules, classes, functions, or parameters unless explicitly instructed.
+- Do not move code between files unless explicitly instructed.
 - Do not change behavior outside the stated scope.
-- Touch only the files listed in the contract scope unless absolutely required.
-  - If additional files are required, announce them before modifying.
+- Touch only the files listed in the contract scope.
+  - If additional files are absolutely required, announce them and wait for approval.
 
-## Project Conventions
+## Codebase-Specific Guidance
 
-- Follow existing patterns and structure already present in the codebase.
-- Match the surrounding style and idioms rather than introducing new ones.
-- Do not introduce new frameworks, libraries, or abstractions unless explicitly instructed.
+- Preserve the existing control flow, even if it appears awkward.
+- Prefer adding code over restructuring existing code.
+- Match the surrounding coding style exactly.
+- Avoid introducing new abstractions, base classes, registries, or frameworks.
 - Assume Python 3.11+.
+- This project is not async and should remain synchronous unless explicitly stated.
 
-## Verification and Execution
+## Verification and Execution (Lightweight by Design)
 
-- The agent is expected to run verification commands locally as part of its work.
-- Typical verification may include (depending on project state):
-  - Linting or formatting checks (for example ruff or black)
-  - Import/load sanity checks
-  - Test execution if tests exist
-  - A defined smoke command or entrypoint
-- If a verification step fails, fix the failure before stopping.
-- Do not declare work complete until verification passes.
+Full automated test coverage is NOT expected at this stage.
+
+The agent should prefer the lightest verification that provides confidence:
+
+- Import/load sanity checks (for example: importing the main module).
+- Running the primary entrypoint or CLI if applicable.
+- Running a single representative execution path if specified in the contract.
+
+If verification is specified in the contract:
+- Run it.
+- Fix failures before stopping.
+
+If no verification is specified:
+- Do not invent heavy verification steps.
+- State clearly what (if anything) was executed to validate behavior.
 
 ## When Tests Do Not Exist
 
-For proof-of-concept or rapidly evolving code:
+This is expected for spirograph at this stage.
 
-- Prefer lightweight verification over full test suites.
-- Use import checks, simple execution paths, or small assertion scripts where available.
-- Preserve behavior unless the contract explicitly changes it.
-- Keep changes tightly scoped to reduce review burden.
+- Do NOT introduce a full test framework unless explicitly instructed.
+- Micro-tests or tiny assertion scripts are acceptable ONLY if requested.
+- Preserve existing behavior unless the contract explicitly changes it.
 
-## Output and Review
+## Output and Review Requirements
 
 Before stopping, the agent must:
 
 - Summarize the changes made.
 - List all files touched.
-- Note any assumptions, limitations, or areas of uncertainty.
-- Clearly state which verification steps were run and their outcomes.
+- Explicitly confirm that no refactors or structural changes were performed.
+- Note any assumptions or uncertainties.
+- State what verification (if any) was run.
 
 ## Safety Rules
 
-- Never delete data, migrations, or large sections of code unless explicitly instructed.
+- Never delete code unless explicitly instructed.
 - Never commit changes; leave all work uncommitted.
-- Do not modify git history or repository configuration.
+- Do not modify git history, tags, branches, or repository configuration.
+- Do not add new dependencies unless explicitly instructed.
 
 End of AGENTS.md.
