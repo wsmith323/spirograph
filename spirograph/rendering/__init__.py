@@ -1,10 +1,13 @@
 from .builder import RenderPlanBuilder
 from .settings import RenderSettings
-from .types import DrawablePath, RenderPlan
+from .turtle_renderer import TurtleGraphicsRenderer
+from .types import CurveRenderer, DrawablePath, RenderPlan
 
 __all__ = [
     "DrawablePath",
     "RenderPlan",
     "RenderSettings",
     "RenderPlanBuilder",
+    "CurveRenderer",
+    "TurtleGraphicsRenderer",
 ]
