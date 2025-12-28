@@ -1,5 +1,15 @@
 # Spirograph v1 Architecture
 
+## Status
+
+This document is the locked ground truth for the v1 refactor. Any changes should be deliberate and explicitly approved to avoid scope drift.
+
+## How to use this document
+
+- Treat the responsibilities and boundaries defined here as authoritative.
+- Prefer adding new v1 components over refactoring existing v0 code unless explicitly planned.
+- When implementation details are unknown, align with these boundaries and keep decisions reversible.
+
 ## 1. Purpose and Scope
 
 ### Purpose
