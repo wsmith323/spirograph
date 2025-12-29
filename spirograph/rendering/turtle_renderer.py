@@ -7,6 +7,7 @@ class TurtleGraphicsRenderer(CurveRenderer):
         import turtle
 
         screen = turtle.Screen()
+        screen.clearscreen()
         screen.colormode(255)
         screen.tracer(0, 0)
         pen = turtle.Turtle()
@@ -34,5 +35,4 @@ class TurtleGraphicsRenderer(CurveRenderer):
                     screen.update()
                 index += 1
             screen.update()
-
-        screen.exitonclick()
+        screen.update()
