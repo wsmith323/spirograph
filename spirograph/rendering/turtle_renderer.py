@@ -7,6 +7,7 @@ class TurtleGraphicsRenderer(CurveRenderer):
         import turtle
 
         screen = turtle.Screen()
+        screen.colormode(255)
         pen = turtle.Turtle()
         pen.speed(settings.speed)
 
@@ -17,7 +18,7 @@ class TurtleGraphicsRenderer(CurveRenderer):
             start = path.points[0]
             pen.goto(start.x, start.y)
             pen.pendown()
-            pen.color(path.color)
+            pen.color(path.color.as_rgb)
             pen.width(path.width)
             for point in path.points[1:]:
                 pen.goto(point.x, point.y)

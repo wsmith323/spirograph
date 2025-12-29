@@ -1,7 +1,7 @@
 import math
 
 from .generator import CurveGenerator
-from .requests import CircularSpiroRequest
+from .requests import CircularSpiroRequest, SpiroType
 from .types import GeneratedCurve, Point2D, PointSpan, SpanKind
 
 
@@ -24,24 +24,83 @@ class CircularSpiroGenerator(CurveGenerator[CircularSpiroRequest]):
         fixed_radius = request.fixed_radius
         rolling_radius = request.rolling_radius
         pen_distance = request.pen_distance
-        step_size = 0.1
+        fixed_int = int(fixed_radius)
+        rolling_int = int(rolling_radius)
+        gcd_value = math.gcd(fixed_int, rolling_int) if rolling_int > 0 else 1
+        period = 2.0 * math.pi * (rolling_int // gcd_value)
+
+        if request.curve_type is SpiroType.HYPOTROCHOID:
+            ratio = (fixed_radius - rolling_radius) / rolling_radius
+            spin_ratio = abs(ratio)
+        else:
+            ratio = (fixed_radius + rolling_radius) / rolling_radius
+            spin_ratio = ratio
 
         points: list[Point2D] = []
+        lap_spans: list[PointSpan] = []
+        spin_spans: list[PointSpan] = []
+
+        current_lap = 0
+        current_spin = 0
+        lap_start = 0
+        spin_start = 0
+
         for step in range(request.steps + 1):
-            t = step * step_size
-            ratio = (fixed_radius - rolling_radius) / rolling_radius
-            x = (fixed_radius - rolling_radius) * math.cos(t) + pen_distance * math.cos(
-                ratio * t
-            )
-            y = (fixed_radius - rolling_radius) * math.sin(t) - pen_distance * math.sin(
-                ratio * t
-            )
+            t = (step / request.steps) * period
+            if request.curve_type is SpiroType.HYPOTROCHOID:
+                diff = fixed_radius - rolling_radius
+                x = diff * math.cos(t) + pen_distance * math.cos(ratio * t)
+                y = diff * math.sin(t) - pen_distance * math.sin(ratio * t)
+            else:
+                summ = fixed_radius + rolling_radius
+                x = summ * math.cos(t) - pen_distance * math.cos(ratio * t)
+                y = summ * math.sin(t) - pen_distance * math.sin(ratio * t)
             points.append(Point2D(x=x, y=y))
 
-        span = PointSpan(
-            start_index=0,
-            end_index=len(points),
-            kind=SpanKind.LAP,
-            ordinal=0,
-        )
-        return GeneratedCurve(points=tuple(points), spans=(span,))
+            lap_index = int(t / (2.0 * math.pi))
+            spin_index = int((spin_ratio * t) / (2.0 * math.pi)) if spin_ratio else 0
+
+            if lap_index > current_lap:
+                lap_spans.append(
+                    PointSpan(
+                        start_index=lap_start,
+                        end_index=step + 1,
+                        kind=SpanKind.LAP,
+                        ordinal=current_lap,
+                    )
+                )
+                lap_start = step + 1
+                current_lap = lap_index
+
+            if spin_index > current_spin:
+                spin_spans.append(
+                    PointSpan(
+                        start_index=spin_start,
+                        end_index=step + 1,
+                        kind=SpanKind.SPIN,
+                        ordinal=current_spin,
+                    )
+                )
+                spin_start = step + 1
+                current_spin = spin_index
+
+        final_index = len(points)
+        if lap_start < final_index:
+            lap_spans.append(
+                PointSpan(
+                    start_index=lap_start,
+                    end_index=final_index,
+                    kind=SpanKind.LAP,
+                    ordinal=current_lap,
+                )
+            )
+        if spin_start < final_index:
+            spin_spans.append(
+                PointSpan(
+                    start_index=spin_start,
+                    end_index=final_index,
+                    kind=SpanKind.SPIN,
+                    ordinal=current_spin,
+                )
+            )
+        return GeneratedCurve(points=tuple(points), spans=tuple(lap_spans + spin_spans))
