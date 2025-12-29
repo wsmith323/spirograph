@@ -1,17 +1,16 @@
 # AGENTS.md
 
-This file defines how automated coding agents (e.g., Codex CLI) should operate in the **spirograph** repository during the v1 architectural consolidation phase.
+This file defines how automated coding agents (e.g., Codex CLI) should operate in the **spirograph** repository during the v1 maintenance and extension phase.
 
-## Current Project State (v1 Refactor)
+## Current Project State (v1)
 
-- The project has successfully transitioned to a v1 pipeline-based architecture (Request → Generator → Builder → Renderer).
-- The "v0" code has been moved to `v0_main.py` for reference and parity verification.
-- The focus is now on achieving full feature parity (Epitrochoids, advanced color modes, evolution logic) within the v1 structure.
+- The project has completed the v1 pipeline-based architecture (Request → Generator → Builder → Renderer).
+- The focus is now on maintaining and extending v1 within the established boundaries.
 - **architecture_v1.md** is the locked ground truth for all structural decisions.
 
 ## Role of the Agent
 
-The agent acts as a **v1 implementation executor**.
+The agent acts as a **v1 maintenance and extension executor**.
 
 - Follow the instructions in the active contract file (typically `codex/contract.md`) exactly.
 - Use `architecture_v1.md` to resolve any ambiguity regarding responsibility boundaries.
@@ -35,9 +34,8 @@ The agent acts as a **v1 implementation executor**.
 
 ## Verification and Execution
 
-- **Sanity Checks**: Always perform import/load checks.
-- **Functional Check**: Run the main v1 entry point (`python3 -m spirograph.main`) to verify the integrated pipeline if the contract involves CLI changes.
-- **Parity Check**: If a feature is ported from v0, verify it behaves identically to the version in `v0_main.py`.
+- **Sanity Checks**: Always perform import/load checks (e.g., `python3 -c "import spirograph"`).
+- **No Interactive Execution**: The agent should not attempt to run the CLI interactively. Verification should be limited to non-interactive scripts or file existence checks.
 
 ## Output and Review Requirements
 
@@ -48,7 +46,6 @@ Before stopping, the agent must:
 
 ## Safety Rules
 
-- Never delete v0 reference code (`v0_main.py`) unless explicitly instructed.
 - Never commit changes; leave work uncommitted for review.
 - Do not add new external dependencies without approval.
 

@@ -13,7 +13,6 @@ far beyond that of the classic real-world spirograph kit.
 
 ## v1 and beyond
 
-- Plugable architecture
 - Non-circular tracks
 - Non-circular rollers
 - Non-centered curves
@@ -23,7 +22,11 @@ far beyond that of the classic real-world spirograph kit.
   websites, animated GIFs, video files, etc.
 - GUI options: Stateful CLI, Desktop, and Web
 
-## v1.0 (MVP)
+## Current Features (v1)
 
 - Plugable architecture
 - All v0 features
+
+## Execution
+
+- Run with `python3 -m spirograph.main`

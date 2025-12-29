@@ -3,6 +3,7 @@
 ## Status
 
 This document is the locked ground truth for the v1 refactor. Any changes should be deliberate and explicitly approved to avoid scope drift.
+Status: Finalized / Implemented.
 
 ## How to use this document
 
@@ -222,6 +223,7 @@ v1 is complete when:
 - v0 functionality is fully reproducible (including all geometry types and color modes).
 - The architecture supports extension without structural changes.
 - All responsibilities are clearly delineated.
+All criteria above are confirmed as met for v1.
 
 ---
 
