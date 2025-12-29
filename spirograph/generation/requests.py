@@ -1,11 +1,15 @@
-from __future__ import annotations
-
 from dataclasses import dataclass
+from enum import Enum
 from typing import Protocol
 
 
 class EngineRequest(Protocol):
     pass
+
+
+class SpiroType(Enum):
+    HYPOTROCHOID = "hypotrochoid"
+    EPITROCHOID = "epitrochoid"
 
 
 @dataclass(frozen=True, slots=True)
@@ -14,6 +18,7 @@ class CircularSpiroRequest:
     rolling_radius: float
     pen_distance: float
     steps: int
+    curve_type: SpiroType = SpiroType.HYPOTROCHOID
 
     def __post_init__(self) -> None:
         if self.fixed_radius <= 0:
