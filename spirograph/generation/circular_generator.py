@@ -26,12 +26,13 @@ class CircularSpiroGenerator(CurveGenerator[CircularSpiroRequest]):
         pen_distance = request.pen_distance
         fixed_int = int(fixed_radius)
         rolling_int = int(rolling_radius)
-        gcd_value = math.gcd(fixed_int, rolling_int) if rolling_int > 0 else 1
-        period = 2.0 * math.pi * (rolling_int // gcd_value)
+        gcd_value = math.gcd(fixed_int, rolling_int)
+        laps_to_close = rolling_int // gcd_value
+        period = 2.0 * math.pi * laps_to_close
 
         if request.curve_type is SpiroType.HYPOTROCHOID:
             ratio = (fixed_radius - rolling_radius) / rolling_radius
-            spin_ratio = abs(ratio)
+            spin_ratio = ratio
         else:
             ratio = (fixed_radius + rolling_radius) / rolling_radius
             spin_ratio = ratio
@@ -57,8 +58,9 @@ class CircularSpiroGenerator(CurveGenerator[CircularSpiroRequest]):
                 y = summ * math.sin(t) - pen_distance * math.sin(ratio * t)
             points.append(Point2D(x=x, y=y))
 
-            lap_index = int(t / (2.0 * math.pi))
-            spin_index = int((spin_ratio * t) / (2.0 * math.pi)) if spin_ratio else 0
+            lap_index = (step * laps_to_close) // request.steps
+            spin_progress = abs(spin_ratio * t) / (2.0 * math.pi) if spin_ratio else 0.0
+            spin_index = int(spin_progress)
 
             if lap_index > current_lap:
                 lap_spans.append(
@@ -103,4 +105,8 @@ class CircularSpiroGenerator(CurveGenerator[CircularSpiroRequest]):
                     ordinal=current_spin,
                 )
             )
-        return GeneratedCurve(points=tuple(points), spans=tuple(lap_spans + spin_spans))
+        return GeneratedCurve(
+            points=tuple(points),
+            spans=tuple(lap_spans + spin_spans),
+            metadata={"laps_to_close": laps_to_close},
+        )
