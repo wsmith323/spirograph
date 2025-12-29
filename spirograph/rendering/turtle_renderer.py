@@ -8,8 +8,15 @@ class TurtleGraphicsRenderer(CurveRenderer):
 
         screen = turtle.Screen()
         screen.colormode(255)
+        screen.tracer(0, 0)
         pen = turtle.Turtle()
-        pen.speed(settings.speed)
+        pen.hideturtle()
+        pen.speed(0)
+        pen.clear()
+
+        batch = 2 ** max(0, settings.speed - 1)
+        if batch < 1:
+            batch = 1
 
         for path in plan.paths:
             if not path.points:
@@ -20,7 +27,12 @@ class TurtleGraphicsRenderer(CurveRenderer):
             pen.pendown()
             pen.color(path.color.as_rgb)
             pen.width(path.width)
+            index = 1
             for point in path.points[1:]:
                 pen.goto(point.x, point.y)
+                if index % batch == 0:
+                    screen.update()
+                index += 1
+            screen.update()
 
         screen.exitonclick()
