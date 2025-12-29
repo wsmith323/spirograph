@@ -69,10 +69,11 @@ class RenderPlanBuilder:
             group_end_index = min(index + interval - 1, len(spans) - 1)
             start_index = spans[index].start_index
             end_index = spans[group_end_index].end_index
-            if end_index > start_index:
+            slice_end = min(end_index + 1, len(curve.points))
+            if slice_end > start_index:
                 paths.append(
                     DrawablePath(
-                        points=curve.points[start_index:end_index],
+                        points=curve.points[start_index:slice_end],
                         color=random_color(),
                         width=settings.width,
                     )
