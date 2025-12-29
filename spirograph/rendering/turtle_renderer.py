@@ -1,19 +1,21 @@
+import turtle
+
 from .settings import RenderSettings
 from .types import CurveRenderer, RenderPlan
 
 
 class TurtleGraphicsRenderer(CurveRenderer):
-    def render(self, plan: RenderPlan, settings: RenderSettings) -> None:
-        import turtle
+    def __init__(self) -> None:
+        self._screen = turtle.Screen()
+        self._screen.setup(width=1000, height=1000)
+        self._screen.colormode(255)
+        self._screen.tracer(0, 0)
+        self._pen = turtle.Turtle()
+        self._pen.hideturtle()
+        self._pen.speed(0)
 
-        screen = turtle.Screen()
-        screen.clearscreen()
-        screen.colormode(255)
-        screen.tracer(0, 0)
-        pen = turtle.Turtle()
-        pen.hideturtle()
-        pen.speed(0)
-        pen.clear()
+    def render(self, plan: RenderPlan, settings: RenderSettings) -> None:
+        self._pen.clear()
 
         batch = 2 ** max(0, settings.speed - 1)
         if batch < 1:
@@ -22,17 +24,17 @@ class TurtleGraphicsRenderer(CurveRenderer):
         for path in plan.paths:
             if not path.points:
                 continue
-            pen.penup()
+            self._pen.penup()
             start = path.points[0]
-            pen.goto(start.x, start.y)
-            pen.pendown()
-            pen.color(path.color.as_rgb)
-            pen.width(path.width)
+            self._pen.goto(start.x, start.y)
+            self._pen.pendown()
+            self._pen.color(path.color.as_rgb)
+            self._pen.width(path.width)
             index = 1
             for point in path.points[1:]:
-                pen.goto(point.x, point.y)
+                self._pen.goto(point.x, point.y)
                 if index % batch == 0:
-                    screen.update()
+                    self._screen.update()
                 index += 1
-            screen.update()
-        screen.update()
+            self._screen.update()
+        self._screen.update()
