@@ -28,7 +28,7 @@ Its goals are:
 - Stateless execution
 - CLI-driven interaction
 - Turtle-based rendering
-- Circular spirograph geometry only
+- Circular spirograph geometry only (Hypotrochoid and Epitrochoid)
 - Randomized and manually entered inputs (as in v0)
 
 ### Explicit Non-Goals for v1
@@ -64,7 +64,7 @@ Represents user intent, not implementation details.
 - Captures all inputs needed to generate a curve.
 - Immutable value object.
 - v1 MVP includes:
-  - CircularSpiroRequest
+  - CircularSpiroRequest (includes `SpiroType`: HYPOTROCHOID or EPITROCHOID)
 
 Design notes:
 - Requests are concrete types.
@@ -79,6 +79,7 @@ Responsibilities:
 - Validate an EngineRequest
 - Generate a complete set of points
 - Identify meaningful subranges of points (spans)
+  - Must emit a sequence of `PointSpan` objects covering every complete LAP and SPIN calculated for the curve to close.
 
 Explicit non-responsibilities:
 - Rendering
@@ -95,18 +96,6 @@ Each generator:
 ### 3.3 GeneratorRegistry
 A simple, explicit registry mapping request types to generators.
 
-Responsibilities:
-- Centralize generator selection
-- Eliminate scattered isinstance checks
-- Provide clear failure modes when unsupported requests are used
-
-Design constraints:
-- Thin wrapper around a dictionary
-- Exact type matching in v1
-- MRO-based matching may be added later if needed
-
-The orchestrator depends on the registry directly.
-
 ---
 
 ### 3.4 GeneratedCurve
@@ -115,16 +104,7 @@ A pure data container representing the output of a generator.
 Contains:
 - Ordered list of points (floating-point coordinates)
 - Semantic grouping metadata (PointSpans)
-- Geometry-related derived values (optional)
-
-Design intent:
-- Renderer-agnostic
-- Serializable (for future persistence)
-- Stable contract between generation and rendering layers
-
-Important:
-- GeneratedCurve contains enough information to re-render the curve under the current version of the program.
-- Exact cross-version visual equivalence is not guaranteed.
+- Geometry-related derived values (metadata dictionary)
 
 ---
 
@@ -140,13 +120,15 @@ Responsibilities:
 - Declare semantic kind (e.g., LAP, SPIN)
 - Provide ordinal ordering
 
-Design constraints:
-- Minimal behavior
-- No rendering or color logic
-- Span-kind branching should be localized (ideally only in planning)
+---
 
-Rationale:
-Spans allow rendering decisions (e.g., color changes) to be expressed without embedding presentation logic into the generator.
+### 3.6 Color (Value Object)
+A renderer-agnostic representation of a color.
+
+Responsibilities:
+- Store R, G, B, A components (0-255).
+- Provide properties for common formats (e.g., `@property as_rgb` returning `tuple[int, int, int]`).
+- Exist in the `rendering` layer as a primitive for `DrawablePath`.
 
 ---
 
@@ -156,16 +138,11 @@ Spans allow rendering decisions (e.g., color changes) to be expressed without em
 Responsible for mapping GeneratedCurve → RenderPlan.
 
 Responsibilities:
-- Interpret spans in the context of rendering settings
-- Decide where visual changes occur (e.g., color boundaries)
-- Resolve presentation-time decisions that are not geometry-dependent
-
-Non-responsibilities:
-- Drawing
-- UI
-- Geometry generation
-
-This is where v0 color modes are re-expressed declaratively.
+- Interpret spans in the context of rendering settings.
+- Decide where visual changes occur (e.g., color boundaries).
+- Branch logic based on `ColorMode` (Fixed, Random, Per-Lap, Per-Spin, etc.).
+  - For "Per" modes, it slices the `GeneratedCurve` into multiple `DrawablePath` segments at `PointSpan` boundaries.
+- Resolve presentation-time decisions that are not geometry-dependent.
 
 ---
 
@@ -173,11 +150,8 @@ This is where v0 color modes are re-expressed declaratively.
 A renderer-agnostic description of what should be drawn.
 
 Contains:
-- One or more drawable paths
-- Per-path style information (pen style, color spec)
+- One or more drawable paths (each with a `Color` value object and `width`)
 - No assumptions about rendering technology
-
-This is the handoff point between domain logic and rendering technology.
 
 ---
 
@@ -185,42 +159,16 @@ This is the handoff point between domain logic and rendering technology.
 Responsible for displaying a RenderPlan.
 
 Responsibilities:
-- Translate RenderPlan into concrete drawing operations
-- Handle renderer-specific constraints (e.g., integer coordinates)
-- Implement animation behavior internally
-
-Non-responsibilities:
-- Geometry generation
-- Span interpretation
-- Randomness decisions
-
-Each renderer:
-- Owns its own performance and batching strategies
-- Encapsulates renderer-specific utilities privately
-
-Example:
-- TurtleGraphicsRenderer
+- Translate RenderPlan into concrete drawing operations.
+- Handle renderer-specific constraints (e.g., integer coordinates).
+- In Turtle renderer, convert `Color.as_rgb` to the required format.
 
 ---
 
 ## 5. Orchestration
 
 ### CurveOrchestrator
-Coordinates the pipeline.
-
-Responsibilities:
-1. Select generator via GeneratorRegistry
-2. Generate curve
-3. Build render plan
-4. Invoke renderer
-
-Explicit non-responsibilities:
-- Persistence
-- Random value generation
-- UI state management
-- Geometry logic
-
-The orchestrator is intentionally thin.
+Coordinates the pipeline. It selects the generator, generates the curve, builds the plan, and invokes the renderer.
 
 ---
 
@@ -229,14 +177,11 @@ The orchestrator is intentionally thin.
 The CLI is a composition and configuration layer, not a logic layer.
 
 Responsibilities:
-- Gather user input
-- Maintain transient session state
-- Construct EngineRequest and RenderSettings
-- Invoke the orchestrator
-
-Design intent:
-- CLI should evolve without affecting core logic
-- Future GUIs or APIs should reuse the same core pipeline
+- Gather user input.
+- Maintain transient session state (e.g., `EvolutionState` for drift/jump logic).
+- Construct EngineRequest and RenderSettings.
+- Provide "Geometry Guidance" and Analysis by interpreting the `EngineRequest` or `GeneratedCurve` metadata (lobes, laps-to-close).
+- Invoke the orchestrator.
 
 ---
 
@@ -244,79 +189,54 @@ Design intent:
 
 Randomness is intentionally split across layers:
 
-- Geometry randomness → CurveGenerator inputs
-- Presentation randomness (e.g., color variation) → RenderPlanBuilder
+- Geometry randomness (resolved into concrete Request values) → CLI Layer.
+- Presentation randomness (resolved into concrete Path colors) → RenderPlanBuilder.
 
 Design principles:
-- Randomness must be explicit and inspectable
-- Generated inputs can be persisted and replayed
-- No hidden randomness inside renderers
+- Randomness must be explicit and inspectable.
+- Generated inputs can be persisted and replayed.
+- No hidden randomness inside renderers or generators.
 
 ---
 
 ## 8. Extensibility Roadmap (Architectural Hooks)
 
-The following future features are explicitly supported by the design:
-
-- Non-circular tracks
-- Oval or complex rolling elements
-- Multiple generators per run
-- Persistence via document-oriented storage
-- GUI and web-based UIs
-- Multiple renderers per run
-
-None of these should require refactoring existing responsibilities.
+The design explicitly supports:
+- Non-circular tracks/rollers.
+- Persistence via document-oriented storage.
+- GUI and web-based UIs.
 
 ---
 
 ## 9. Guiding Design Principles
 
-- Separation of concerns over minimal class count
-- Composition over inheritance
-- Practicality over theoretical purity
-- Explicit over implicit
-- Readability over cleverness
-- Architectural clarity over premature optimization
+- Separation of concerns over minimal class count.
+- Composition over inheritance.
+- Explicit over implicit.
 
 ---
 
 ## 10. v1 Definition of “Done”
 
 v1 is complete when:
-
-- v0 functionality is fully reproducible
-- The CLI is less tedious than v0
-- The architecture supports extension without structural changes
-- All responsibilities are clearly delineated
-- No future feature requires undoing v1 decisions
+- v0 functionality is fully reproducible (including all geometry types and color modes).
+- The architecture supports extension without structural changes.
+- All responsibilities are clearly delineated.
 
 ---
 
 ## Appendix A: Concrete v1 Artifacts (Informational)
 
-The following classes and components are expected to exist in the v1 codebase. This list is informational only and does not imply implementation order.
-
 ### Generation Core
-- EngineRequest
-- CircularSpiroRequest
-- CurveGenerator (ABC)
-- GeneratorRegistry
-- GeneratedCurve
-- Point2D
-- PointSpan (SpanKind: LAP, SPIN)
+- EngineRequest, CircularSpiroRequest, SpiroType
+- CurveGenerator (ABC), GeneratorRegistry
+- GeneratedCurve, Point2D, PointSpan (SpanKind: LAP, SPIN)
 
 ### Rendering and Presentation
-- RenderSettings
-- RenderPlanBuilder
-- RenderPlan
-- CurveRenderer
-- TurtleGraphicsRenderer
-- RenderedCurveResult
+- Color (Value Object)
+- RenderSettings, ColorMode
+- RenderPlanBuilder, RenderPlan
+- CurveRenderer, TurtleGraphicsRenderer
 
 ### Orchestration
 - CurveOrchestrator
-
-### CLI / Application Layer
-- GenerationSessionState
-- RenderSessionState
-- CliSessionState
