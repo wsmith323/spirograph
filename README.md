@@ -1,39 +1,43 @@
 # Digital Spirograph
 
-Digital Spirograph is a modular, high-precision geometry tool for generating
-and rendering spirograph curves with rich visual variation and guided control.
+## Project Overview
 
-## Features
+Digital Spirograph is a modular geometric drawing engine that produces
+high-precision spirograph curves through a decoupled pipeline architecture.
+The design keeps geometry generation, curve construction, and rendering
+independent so each stage can evolve without entangling the others.
+
+## Core Features
 
 - Dual Geometry: Hypotrochoids and Epitrochoids.
-- Advanced Color Modes: Fixed, Random, Per-Lap, and Per-Spin variations.
-- Evolutionary Randomness: Drift and Jump modes for continuous discovery.
-- User Controls: Parameter locking and mathematical guidance.
+- Automatic Closure: GCD-based period sampling for perfectly closed curves.
+- Advanced Presentation: High-fidelity RGBA color model with span-aware modes
+  (per lap/spin).
+- Evolutionary Discovery: Drift and Jump modes for parameter exploration.
 
 ## Getting Started
 
-Run the application with:
+Run the application CLI with:
 
 ```
 python3 -m spirograph.main
 ```
 
-## Extensibility
+## Architecture & Extensibility
 
-The pipeline architecture is intentionally pluggable. New `EngineRequest` types
-can introduce additional geometry, new `CurveGenerator` implementations can
-produce those curves, and new `CurveRenderer` backends can target different
-output systems without changing core logic.
+The engine uses a pluggable pipeline: Request -> Generator -> Builder ->
+Renderer. This keeps request handling, curve generation, and rendering
+independent while making it straightforward to add new request types,
+builders, or renderers. The currently available renderer implementation uses 
+Python Turtle Graphics.
 
 ## Future Roadmap
 
-- Persistence: Save and replay curve configurations via document-oriented
-  storage.
-- Advanced Geometry: Support for non-circular tracks and complex rolling
-  elements.
-- Rich Output: Export functionality for SVG, high-resolution raster images, and
-  animated GIFs.
-- Multiple Curves: Support for layering multiple geometric requests in a single
-  render plan.
-- Web/GUI Interfaces: Transitioning beyond the CLI while reusing the core
-  generation pipeline.
+- Support for non-circular tracks and rollers.
+- Multiple layered curves in a single drawing.
+- Saving and replaying curve configurations.
+- SVG, GIF, and video export.
+- Additional UIs:
+  - CLI with between-execution state save/restore
+  - Desktop GUI
+  - Rich Web App
