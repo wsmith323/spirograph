@@ -1,43 +1,94 @@
 # Digital Spirograph
 
-## Project Overview
+Brings the classic geometric art of the physical spirograph kit into a
+high-precision digital environment. It recreates the nostalgic experience of 
+tracing hypnotic curves with a pen under the guidance of interlocking 
+plastic gears but removes the constraints imposed by the physical world.
 
-Digital Spirograph is a modular geometric drawing engine that produces
-high-precision spirograph curves through a decoupled pipeline architecture.
-The design keeps geometry generation, curve construction, and rendering
-independent so each stage can evolve without entangling the others.
+### Basic Concepts 
+If you have ever used a physical spirograph, the concepts here will be
+immediately familiar:
 
-## Core Features
+* **Fixed Tracks and Moving Rollers:** Just like the real world, you chose a
+  fixed circular "track" and a smaller wheel that rolls along it.
+* **The Pen:** You decide where the "pen" sits in that moving wheel.
+  Changing this position creates everything from tight loops to wide, sweeping
+  waves.
+* **Curve Types:**
+    * **Hypotrochoid:** Rolling the wheel on the inside of the track
+    * **Epitrochoid:** Rolling the wheel on the outside of the track
 
-- Dual Geometry: Hypotrochoids and Epitrochoids.
-- Automatic Closure: GCD-based period sampling for perfectly closed curves.
-- Advanced Presentation: High-fidelity RGBA color model with span-aware modes
-  (per lap/spin).
-- Evolutionary Discovery: Drift and Jump modes for parameter exploration.
+### Beyond the Plastic Gears
+
+While it feels like the classic kit, this digital version goes significantly
+further:
+
+* **Infinite Precision:** No more slipping gears, bumping the track, or ink
+  blots. Curves are calculated with mathematical perfection.
+* **Automatic Closure:** In the real world, you have to keep spinning until the
+  lines meet. This engine uses GCD-based logic to calculate exactly how many
+  rotations are needed to perfectly close the loop every time.
+* **Full color palette:** Choose from millions of color combinations.
+* **Random color choice:** Choose patterns for random color choice, 
+  including N laps of the track or N spins of the wheel.
+* **Impossible geometries:**
+  * Rolling wheel larger than the circular track
+  * Pen position outside the roller
+* **Evolutionary Discovery:** Use "Drift" and "Jump" modes to let the engine
+  explore variations of your favorite curves, discovering new geometric patterns
+  automatically.
 
 ## Getting Started
 
-Run the application CLI with:
-
+To run the current Command Line Interface (CLI), execute this from a 
+terminal in the project root:
 ```
 python3 -m spirograph.main
 ```
-
-## Architecture & Extensibility
-
-The engine uses a pluggable pipeline: Request -> Generator -> Builder ->
-Renderer. This keeps request handling, curve generation, and rendering
-independent while making it straightforward to add new request types,
-builders, or renderers. The currently available renderer implementation uses 
-Python Turtle Graphics.
+> **Note on the CLI:** The current version is functional but primitive, and
+> "just enough to make it work." Development up to this point has focused
+> primarily on exploring possibilities and on the underlying architecture.
 
 ## Future Roadmap
 
-- Support for non-circular tracks and rollers.
-- Multiple layered curves in a single drawing.
-- Saving and replaying curve configurations.
-- SVG, GIF, and video export.
-- Additional UIs:
-  - CLI with between-execution state save/restore
-  - Desktop GUI
-  - Rich Web App
+- **CLI:** More polished, intuitive and streamlined experience
+- **Persistence:**
+  - Save/Restore state between CLI sessions
+  - Save and replay drawings 
+- **Extended Geometries:**
+  - Support for non-circular tracks:
+    - Bar track (like in the classic kit)
+    - Complex shape tracks, based on a "rounded rectangle" concept
+  - Support for non-circular rollers:
+    - Oval (like the "football" in the classic kit)
+    - Lobed (like the "clover" in the classic kit)
+  - Support for "meta-curves":
+    - Moving track position during curve rendering
+    - Track as a roller inside/outside another track
+- **Extended Drawing Composition:**
+  - Non-centered curves
+  - Combine multiple curves into a single drawing
+- **Export:** Export drawings as SVG, GIF, or video files
+- **GUIs:** Desktop and Web-based interfaces
+
+## Technical Architecture (For Developers)
+
+Digital Spirograph is built as a modular geometric drawing engine using a
+decoupled pipeline architecture.
+The design ensures that geometry generation, curve construction, and rendering
+remain independent.
+
+### The Pipeline
+
+The engine uses a pluggable sequence: **Request** -> **Generator** ->
+**Builder** -> **Renderer**.
+
+* **Request:** Captures user intent and parameters (via CLI or other
+  interfaces).
+* **Generator:** Handles pure mathematical calculation of geometric point data
+  based on the Request.
+* **Builder:** Assembles raw points into a coherent curve structure with
+  metadata.
+* **Renderer:** Visualizes the constructed curve. The current implementation
+  uses Python's Turtle Graphics, but the architecture is designed so that 
+  future renderers can be plugged in with minimal changes.
