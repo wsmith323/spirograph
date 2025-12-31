@@ -2,17 +2,21 @@
 """
 Sampling script for spirograph CLI randomness tuning.
 
-Run from repo root:
-  python3 -m spirograph.cli.sample_randomness --samples 1000
+Run from repo root (recommended):
+  python3 -m spirograph.randomness_tuner --samples 1000
 
-Or:
-  python3 spirograph/cli/sample_randomness.py --samples 2000 --seed 123
+Or run as a script:
+  python3 spirograph/randomness_tuner.py --samples 2000 --seed 123
+
+Notes:
+- This module lives in the `spirograph` package (not `spirograph.cli`).
+- The tuner imports CLI randomness helpers from `spirograph.cli.*`.
 """
 
 import argparse
 import random
 import statistics
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from typing import Iterable
 
 import math
@@ -20,7 +24,10 @@ import math
 from spirograph.cli.constants import RandomComplexity, RandomConstraintMode, RandomEvolutionMode
 from spirograph.cli.randomness import (
     COMPLEXITY_PROFILES,
+    get_last_pen_offset_selection_debug,
     get_last_rolling_radius_selection_debug,
+    lobes_error_for,
+    lobes_in_range_for,
     random_fixed_circle_radius,
     random_pen_offset,
     random_rolling_circle_radius,
@@ -65,6 +72,51 @@ def summarize_ints(values: list[int]) -> dict[str, float]:
     return summarize_floats([float(x) for x in values])
 
 
+def radial_span_norm_for(R: int, r: int, d: int) -> float:
+    if R <= 0 or r <= 0 or d <= 0:
+        return float('inf')
+
+    g = math.gcd(R, r)
+    laps = max(1, r // max(1, g))
+
+    steps = 360 * laps
+    steps = max(360, steps)
+    steps = min(3000, steps)
+
+    inside = r <= R
+    a = (R - r) if inside else (R + r)
+    a_over_r = a / float(r)
+
+    rho_min = float('inf')
+    rho_max = 0.0
+
+    t_max = 2.0 * math.pi * laps
+    for i in range(steps + 1):
+        t = (t_max * i) / steps
+        ct = math.cos(t)
+        st = math.sin(t)
+        c2 = math.cos(a_over_r * t)
+        s2 = math.sin(a_over_r * t)
+
+        if inside:
+            x = a * ct + d * c2
+            y = a * st - d * s2
+        else:
+            x = a * ct - d * c2
+            y = a * st - d * s2
+
+        rho = math.hypot(x, y)
+        if rho < rho_min:
+            rho_min = rho
+        if rho > rho_max:
+            rho_max = rho
+
+    if rho_max <= 0.0 or not math.isfinite(rho_min):
+        return float('inf')
+
+    return (rho_max - rho_min) / rho_max
+
+
 def run_for_complexity(
     *,
     complexity: RandomComplexity,
@@ -94,17 +146,37 @@ def run_for_complexity(
     laps_to_close: list[int] = []
     diffs: list[int] = []
     offset_factors: list[float] = []
+    ringness_values: list[float] = []
+    radial_span_norms: list[float] = []
 
     ratio_outside = 0
     lobes_outside_tolerance = 0
     diff_below = 0
     offset_outside = 0
+    ring_like = 0
+    offset_small = 0
+    offset_near_one = 0
+    offset_prolate = 0
+    offset_large = 0
     gcd_eq_1 = 0
+    visual_ring_like = 0
 
     constructed_count = 0
     sampled_count = 0
     constructed_considered_total = 0
     sampled_considered_total = 0
+    fallback_used_count = 0
+    fallback_candidates_total = 0
+    fallback_candidates_considered = 0
+    fallback_stage_counts: dict[str, int] = {}
+    fallback_last_resort_samples: list[dict[str, object]] = []
+    fallback_last_resort_cap = 5
+    pen_fallback_full_range_count = 0
+    diff_band_used_count = 0
+    pen_near_one_samples: list[dict[str, object]] = []
+    pen_near_one_cap = 5
+    pen_bias_samples: list[dict[str, object]] = []
+    pen_bias_samples_cap = 8
 
     for _ in range(samples):
         R = int(random_fixed_circle_radius(session))
@@ -125,9 +197,33 @@ def run_for_complexity(
         elif phase == 'sampled':
             sampled_count += 1
             sampled_considered_total += int(debug.get('sampled_candidates_considered', 0))
+            if debug.get('fallback_used'):
+                fallback_used_count += 1
+                fallback_candidates_total += int(debug.get('fallback_candidates_total', 0))
+                fallback_candidates_considered += int(debug.get('fallback_candidates_considered', 0))
+                stage = debug.get('fallback_stage')
+                if isinstance(stage, str):
+                    fallback_stage_counts[stage] = fallback_stage_counts.get(stage, 0) + 1
+                    if stage == 'evolved_last_resort' and len(fallback_last_resort_samples) < fallback_last_resort_cap:
+                        fallback_last_resort_samples.append(
+                            {
+                                'fixed_radius': debug.get('fixed_radius'),
+                                'chosen_r': debug.get('chosen_r'),
+                                'chosen_ratio': debug.get('chosen_ratio'),
+                                'chosen_laps': debug.get('chosen_laps'),
+                                'chosen_diff': debug.get('chosen_diff'),
+                                'chosen_gcd': debug.get('chosen_gcd'),
+                                'prev_r': debug.get('fallback_prev_r'),
+                                'ratio_window': debug.get('fallback_ratio_window'),
+                                'ratio_bounds': debug.get('fallback_ratio_bounds'),
+                                'ratio_range': debug.get('fallback_ratio_range'),
+                                'diff_min': debug.get('fallback_diff_min'),
+                            }
+                        )
 
         d = int(
             random_pen_offset(
+                fixed_radius=R,
                 rolling_radius=r,
                 prev=session.last_request,
                 complexity=session.random_complexity,
@@ -135,6 +231,78 @@ def run_for_complexity(
                 evolution=session.random_evolution_mode,
             )
         )
+        pen_debug = get_last_pen_offset_selection_debug() or {}
+        if pen_debug.get('used_diff_band'):
+            diff_band_used_count += 1
+        if pen_debug.get('used_fallback_full_range'):
+            pen_fallback_full_range_count += 1
+        # Capture a small sample of pen-offset bias/interval debug to verify high_pref adjustments.
+        if len(pen_bias_samples) < pen_bias_samples_cap:
+            hp_base = pen_debug.get('high_pref_base')
+            hp_eff = pen_debug.get('high_pref_effective')
+            w_left = pen_debug.get('interval_w_left')
+            w_right = pen_debug.get('interval_w_right')
+            w_share = pen_debug.get('interval_width_share')
+            mode = pen_debug.get('selection_mode')
+            used_db = pen_debug.get('used_diff_band')
+
+            # Only record when at least one of the new fields is present (avoids noise if code path differs).
+            if (
+                any(v is not None for v in (hp_base, hp_eff, w_left, w_right, w_share))
+                or mode is not None
+                or used_db is not None
+            ):
+                pen_bias_samples.append(
+                    {
+                        'rolling_radius': pen_debug.get('rolling_radius'),
+                        'chosen_d': pen_debug.get('chosen_d'),
+                        'chosen_factor': pen_debug.get('chosen_factor'),
+                        'effective_min': pen_debug.get('effective_min'),
+                        'd_min': pen_debug.get('d_min'),
+                        'd_max': pen_debug.get('d_max'),
+                        'band': pen_debug.get('band'),
+                        'band_base': pen_debug.get('band_base'),
+                        'band_effective': pen_debug.get('band_effective'),
+                        'radius_mul': pen_debug.get('radius_mul'),
+                        'band_low_d': pen_debug.get('band_low_d'),
+                        'band_high_d': pen_debug.get('band_high_d'),
+                        'left': pen_debug.get('left'),
+                        'right': pen_debug.get('right'),
+                        'high_pref_base': hp_base,
+                        'high_pref_effective': hp_eff,
+                        'interval_w_left': w_left,
+                        'interval_w_right': w_right,
+                        'interval_width_share': w_share,
+                        'diff': pen_debug.get('diff'),
+                        'diff_low': pen_debug.get('diff_low'),
+                        'diff_high': pen_debug.get('diff_high'),
+                        'diff_band_weight_t': pen_debug.get('diff_band_weight_t'),
+                        'used_diff_band': used_db,
+                        'selection_mode': mode,
+                        'final_low': pen_debug.get('final_low'),
+                        'final_high': pen_debug.get('final_high'),
+                        'used_fallback_full_range': pen_debug.get('used_fallback_full_range'),
+                        'empty_range_fallback': pen_debug.get('empty_range_fallback'),
+                    }
+                )
+        if len(pen_near_one_samples) < pen_near_one_cap:
+            chosen_factor = pen_debug.get('chosen_factor')
+            if isinstance(chosen_factor, (int, float)) and 0.80 <= chosen_factor <= 1.20:
+                pen_near_one_samples.append(
+                    {
+                        'rolling_radius': pen_debug.get('rolling_radius'),
+                        'chosen_d': pen_debug.get('chosen_d'),
+                        'chosen_factor': chosen_factor,
+                        'effective_min': pen_debug.get('effective_min'),
+                        'd_min': pen_debug.get('d_min'),
+                        'd_max': pen_debug.get('d_max'),
+                        'band': pen_debug.get('band'),
+                        'band_low_d': pen_debug.get('band_low_d'),
+                        'band_high_d': pen_debug.get('band_high_d'),
+                        'left': pen_debug.get('left'),
+                        'right': pen_debug.get('right'),
+                    }
+                )
 
         g = math.gcd(R, r)
         lobe_count = max(1, R // g)
@@ -142,7 +310,10 @@ def run_for_complexity(
         ratio = (R / r) if r else float('inf')
         diff = abs(R - r)
         offset_factor = (d / r) if r else float('inf')
-        lobe_error = abs(lobe_count - profile.lobes_target)
+        denom = d + r
+        ringness = (abs(d - r) / denom) if denom else float('inf')
+        lobe_error = lobes_error_for(profile, lobe_count)
+        rsn = radial_span_norm_for(R, r, d)
 
         Rs.append(R)
         rs.append(r)
@@ -154,10 +325,12 @@ def run_for_complexity(
         laps_to_close.append(laps)
         diffs.append(diff)
         offset_factors.append(offset_factor)
+        ringness_values.append(ringness)
+        radial_span_norms.append(rsn)
 
         if not (profile.ratio_min <= ratio <= profile.ratio_max):
             ratio_outside += 1
-        if lobe_error > profile.lobes_tolerance:
+        if not lobes_in_range_for(profile, lobe_count):
             lobes_outside_tolerance += 1
         if diff < profile.diff_min:
             diff_below += 1
@@ -167,6 +340,18 @@ def run_for_complexity(
             <= profile.offset_max_factor * (1.5 if constraint is RandomConstraintMode.WILD else 1.0)
         ):
             offset_outside += 1
+        if offset_factor <= 0.35:
+            offset_small += 1
+        if 0.80 <= offset_factor <= 1.20:
+            offset_near_one += 1
+        if offset_factor >= 1.05:
+            offset_prolate += 1
+        if offset_factor >= 1.60:
+            offset_large += 1
+        if ringness <= 0.10:
+            ring_like += 1
+        if rsn <= 0.12:
+            visual_ring_like += 1
         if g == 1:
             gcd_eq_1 += 1
 
@@ -185,6 +370,19 @@ def run_for_complexity(
         if constructed_count
         else 0.0,
         'sampled_candidates_considered_avg': (sampled_considered_total / sampled_count) if sampled_count else 0.0,
+        'fallback_used_pct': 100.0 * fallback_used_count / samples,
+        'fallback_candidates_total_avg': (fallback_candidates_total / fallback_used_count)
+        if fallback_used_count
+        else 0.0,
+        'fallback_candidates_considered_avg': (fallback_candidates_considered / fallback_used_count)
+        if fallback_used_count
+        else 0.0,
+        'fallback_stage_counts': fallback_stage_counts,
+        'fallback_last_resort_samples': fallback_last_resort_samples,
+        'pen_fallback_full_range_pct': 100.0 * pen_fallback_full_range_count / samples,
+        'diff_band_used_pct': 100.0 * diff_band_used_count / samples,
+        'pen_near_one_samples': pen_near_one_samples,
+        'pen_bias_samples': pen_bias_samples,
     }
 
     return {
@@ -197,6 +395,12 @@ def run_for_complexity(
             'lobes_outside_tolerance_pct': 100.0 * lobes_outside_tolerance / samples,
             'diff_below_profile_pct': 100.0 * diff_below / samples,
             'offset_outside_profile_pct': 100.0 * offset_outside / samples,
+            'offset_small_pct': 100.0 * offset_small / samples,
+            'offset_near_one_pct': 100.0 * offset_near_one / samples,
+            'offset_prolate_pct': 100.0 * offset_prolate / samples,
+            'offset_large_pct': 100.0 * offset_large / samples,
+            'ring_like_pct': 100.0 * ring_like / samples,
+            'visual_ring_like_pct': 100.0 * visual_ring_like / samples,
             'gcd_eq_1_pct': 100.0 * gcd_eq_1 / samples,
         },
         'selection_debug_summary': selection_debug_summary,
@@ -211,8 +415,137 @@ def run_for_complexity(
             'laps_to_close': summarize_ints(laps_to_close),
             'diff_abs_R_minus_r': summarize_ints(diffs),
             'offset_factor_d_over_r': summarize_floats(offset_factors),
+            'ringness_abs_d_minus_r_over_sum': summarize_floats(ringness_values),
+            'radial_span_norm': summarize_floats(radial_span_norms),
         },
     }
+
+
+def _set_profiles(profiles: dict[RandomComplexity, object]) -> None:
+    COMPLEXITY_PROFILES.clear()
+    COMPLEXITY_PROFILES.update(profiles)
+
+
+def _score_result(result: dict[str, object]) -> tuple[float, float]:
+    violations = result.get('violations', {})
+    lobes_outside = float(violations.get('lobes_outside_tolerance_pct', 0.0))
+    ratio_outside = float(violations.get('ratio_outside_profile_pct', 0.0))
+    return (lobes_outside, ratio_outside)
+
+
+def auto_tune_profiles(
+    *,
+    samples: int,
+    max_iterations: int,
+    step_m_candidates: int,
+    step_top_n: int,
+    step_samples: int,
+    step_lobes_retry: int,
+    max_m_candidates: int,
+    max_top_n: int,
+    max_samples: int,
+    max_lobes_retry: int,
+    constraint: RandomConstraintMode,
+    evolution: RandomEvolutionMode,
+    complexities: list[RandomComplexity],
+) -> None:
+    base_profiles = dict(COMPLEXITY_PROFILES)
+
+    for complexity in complexities:
+        base_profile = base_profiles[complexity]
+        best_profile = base_profile
+        COMPLEXITY_PROFILES[complexity] = best_profile
+        baseline = run_for_complexity(
+            complexity=complexity,
+            samples=samples,
+            constraint=constraint,
+            evolution=evolution,
+        )
+        best_score = _score_result(baseline)
+
+        for _ in range(max_iterations):
+            candidates = []
+            for m_delta, top_delta, sample_delta in (
+                (step_m_candidates, 0, 0),
+                (-step_m_candidates, 0, 0),
+                (0, step_top_n, 0),
+                (0, -step_top_n, 0),
+                (0, 0, step_samples),
+                (0, 0, -step_samples),
+                (step_m_candidates, step_top_n, 0),
+                (step_m_candidates, -step_top_n, 0),
+                (-step_m_candidates, step_top_n, 0),
+                (-step_m_candidates, -step_top_n, 0),
+                (step_m_candidates, 0, step_samples),
+                (step_m_candidates, 0, -step_samples),
+                (-step_m_candidates, 0, step_samples),
+                (-step_m_candidates, 0, -step_samples),
+                (0, step_top_n, step_samples),
+                (0, step_top_n, -step_samples),
+                (0, -step_top_n, step_samples),
+                (0, -step_top_n, -step_samples),
+                (step_m_candidates, step_top_n, step_samples),
+                (step_m_candidates, step_top_n, -step_samples),
+                (step_m_candidates, -step_top_n, step_samples),
+                (step_m_candidates, -step_top_n, -step_samples),
+                (-step_m_candidates, step_top_n, step_samples),
+                (-step_m_candidates, step_top_n, -step_samples),
+                (-step_m_candidates, -step_top_n, step_samples),
+                (-step_m_candidates, -step_top_n, -step_samples),
+            ):
+                for retry_delta in (-step_lobes_retry, 0, step_lobes_retry):
+                    new_m = best_profile.constructed_m_candidates + m_delta
+                    new_top = best_profile.constructed_top_n + top_delta
+                    new_samples = best_profile.sample_count + sample_delta
+                    new_retry = best_profile.lobes_retry_count + retry_delta
+
+                    new_m = max(base_profile.constructed_m_candidates, min(new_m, max_m_candidates))
+                    new_top = max(base_profile.constructed_top_n, min(new_top, max_top_n))
+                    new_samples = max(base_profile.sample_count, min(new_samples, max_samples))
+                    new_retry = max(base_profile.lobes_retry_count, min(new_retry, max_lobes_retry))
+
+                    if (
+                        new_m == best_profile.constructed_m_candidates
+                        and new_top == best_profile.constructed_top_n
+                        and new_samples == best_profile.sample_count
+                        and new_retry == best_profile.lobes_retry_count
+                    ):
+                        continue
+                    candidates.append(
+                        replace(
+                            best_profile,
+                            constructed_m_candidates=new_m,
+                            constructed_top_n=new_top,
+                            sample_count=new_samples,
+                            lobes_retry_count=new_retry,
+                        )
+                    )
+
+            if not candidates:
+                break
+
+            improved = False
+            for candidate in candidates:
+                COMPLEXITY_PROFILES[complexity] = candidate
+                result = run_for_complexity(
+                    complexity=complexity,
+                    samples=samples,
+                    constraint=constraint,
+                    evolution=evolution,
+                )
+                score = _score_result(result)
+                if score < best_score:
+                    best_score = score
+                    best_profile = candidate
+                    improved = True
+
+            COMPLEXITY_PROFILES[complexity] = best_profile
+            if not improved:
+                break
+
+        base_profiles[complexity] = best_profile
+
+    _set_profiles(base_profiles)
 
 
 def main(argv: Iterable[str] | None = None) -> int:
@@ -235,6 +568,17 @@ def main(argv: Iterable[str] | None = None) -> int:
         default=None,
         help='Run only one complexity value',
     )
+    parser.add_argument('--auto-tune', action='store_true', help='Auto-tune candidate counts in a bounded loop')
+    parser.add_argument('--auto-samples', type=int, default=400, help='Samples per auto-tune iteration')
+    parser.add_argument('--auto-iterations', type=int, default=4)
+    parser.add_argument('--auto-step-m', type=int, default=6)
+    parser.add_argument('--auto-step-top', type=int, default=4)
+    parser.add_argument('--auto-step-samples', type=int, default=50)
+    parser.add_argument('--auto-step-retry', type=int, default=1)
+    parser.add_argument('--auto-max-m', type=int, default=60)
+    parser.add_argument('--auto-max-top', type=int, default=30)
+    parser.add_argument('--auto-max-samples', type=int, default=600)
+    parser.add_argument('--auto-max-retry', type=int, default=8)
 
     args = parser.parse_args(list(argv) if argv is not None else None)
 
@@ -245,6 +589,23 @@ def main(argv: Iterable[str] | None = None) -> int:
     evolution = RandomEvolutionMode(args.evolution)
 
     complexities = [RandomComplexity(args.only)] if args.only else list(RandomComplexity)
+
+    if args.auto_tune:
+        auto_tune_profiles(
+            samples=args.auto_samples,
+            max_iterations=args.auto_iterations,
+            step_m_candidates=args.auto_step_m,
+            step_top_n=args.auto_step_top,
+            step_samples=args.auto_step_samples,
+            step_lobes_retry=args.auto_step_retry,
+            max_m_candidates=args.auto_max_m,
+            max_top_n=args.auto_max_top,
+            max_samples=args.auto_max_samples,
+            max_lobes_retry=args.auto_max_retry,
+            constraint=constraint,
+            evolution=evolution,
+            complexities=complexities,
+        )
 
     results: list[dict[str, object]] = []
     for c in complexities:

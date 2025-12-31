@@ -26,3 +26,14 @@ class CliSessionState:
     locked_pen_distance: int | None = None
 
     last_request: CircularSpiroRequest | None = None
+
+    def __post_init__(self) -> None:
+        self._normalize_random_modes()
+
+    def _normalize_random_modes(self) -> None:
+        if not isinstance(self.random_complexity, RandomComplexity):
+            self.random_complexity = RandomComplexity(self.random_complexity)
+        if not isinstance(self.random_constraint_mode, RandomConstraintMode):
+            self.random_constraint_mode = RandomConstraintMode(self.random_constraint_mode)
+        if not isinstance(self.random_evolution_mode, RandomEvolutionMode):
+            self.random_evolution_mode = RandomEvolutionMode(self.random_evolution_mode)

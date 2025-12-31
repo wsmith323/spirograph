@@ -1,8 +1,10 @@
+import argparse
 import time
 
 import math
 
 from spirograph.generation import SpiroType
+from .cli.constants import RandomEvolutionMode
 from .cli.guidance import (
     describe_curve,
     guide_before_fixed_radius,
@@ -31,6 +33,7 @@ from .generation.circular_generator import CircularSpiroGenerator
 from .generation.registry import GeneratorRegistry
 from .generation.requests import CircularSpiroRequest
 from .orchestration import CurveOrchestrator
+from .randomness_tuner import radial_span_norm_for
 from .rendering import (
     RenderPlanBuilder,
     RenderSettings,
@@ -134,7 +137,46 @@ def build_request(
     )
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--debug-geometry',
+        action='store_true',
+        help='Print geometry diagnostics (R, r, d, lobes, laps, ringness, radial span) for each generated curve',
+    )
+    return parser.parse_args()
+
+
+def print_geometry_diagnostics(request: CircularSpiroRequest, enabled: bool) -> None:
+    if not enabled:
+        return
+
+    R = int(request.fixed_radius)
+    r = int(request.rolling_radius)
+    d = int(request.pen_distance)
+
+    g = math.gcd(R, r)
+    lobes = max(1, R // g) if g else 1
+    laps = max(1, r // g) if g else 1
+    ratio = (R / r) if r else float('inf')
+    offset_factor = (d / r) if r else float('inf')
+    denom = d + r
+    ringness = (abs(d - r) / denom) if denom else float('inf')
+    rsn = radial_span_norm_for(R, r, d)
+
+    print(
+        'GEOM '
+        f'R={R} r={r} d={d} '
+        f'lobes={lobes} laps={laps} '
+        f'ratio={ratio:.2f} d/r={offset_factor:.2f} '
+        f'ringness={ringness:.2f} rsn={rsn:.2f}'
+    )
+
+
 def generate_random_request(session: CliSessionState) -> CircularSpiroRequest:
+    session._normalize_random_modes()
+    assert isinstance(session.random_evolution_mode, RandomEvolutionMode)
+
     if session.locked_fixed_radius is None:
         fixed_radius = random_fixed_circle_radius(session)
     else:
@@ -153,11 +195,12 @@ def generate_random_request(session: CliSessionState) -> CircularSpiroRequest:
 
     if session.locked_pen_distance is None:
         pen_distance = random_pen_offset(
-            rolling_radius,
-            session.last_request,
-            session.random_complexity,
-            session.random_constraint_mode,
-            session.random_evolution_mode,
+            fixed_radius=fixed_radius,
+            rolling_radius=rolling_radius,
+            prev=session.last_request,
+            complexity=session.random_complexity,
+            constraint=session.random_constraint_mode,
+            evolution=session.random_evolution_mode,
         )
     else:
         pen_distance = session.locked_pen_distance
@@ -238,6 +281,7 @@ def edit_session_settings(session: CliSessionState) -> None:
         type(session.random_evolution_mode),
         session.random_evolution_mode,
     )
+    session._normalize_random_modes()
 
     session.color_mode = prompt_enum('Color Mode', ColorMode, session.color_mode)
     if session.color_mode is ColorMode.FIXED:
@@ -287,6 +331,7 @@ def render_request(
 
 
 def main() -> None:
+    args = parse_args()
     registry = GeneratorRegistry()
     registry.register(CircularSpiroGenerator())
 
@@ -320,6 +365,7 @@ def main() -> None:
                     session.last_request = request
 
                     print_selected_parameters(request, session)
+                    print_geometry_diagnostics(request, args.debug_geometry)
                     describe_curve(request)
                     render_request(orchestrator, request, session)
                     time.sleep(pause_seconds)
@@ -338,6 +384,7 @@ def main() -> None:
                 request = edit_geometry(session)
                 session.last_request = request
                 print_selected_parameters(request, session)
+                print_geometry_diagnostics(request, args.debug_geometry)
                 describe_curve(request)
                 render_request(orchestrator, request, session)
                 continue
@@ -349,6 +396,7 @@ def main() -> None:
                 request = generate_random_request(session)
                 session.last_request = request
                 print_selected_parameters(request, session)
+                print_geometry_diagnostics(request, args.debug_geometry)
                 describe_curve(request)
                 render_request(orchestrator, request, session)
 
