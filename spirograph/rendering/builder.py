@@ -1,7 +1,9 @@
 import random
 
-from spirograph.generation.types import GeneratedCurve, SpanKind
-from .types import Color, DrawablePath, RenderPlan, ColorMode, RenderSettings
+from spirograph.generation.constants import SpanKind
+from spirograph.generation.data_types import GeneratedCurve
+from .constants import ColorMode
+from .data_types import Color, DrawablePath, RenderPlan, RenderSettings
 
 
 class RenderPlanBuilder:

@@ -1,6 +1,6 @@
 import turtle
 
-from .types import CurveRenderer, RenderPlan, RenderSettings
+from .data_types import CurveRenderer, RenderPlan, RenderSettings
 
 
 class TurtleGraphicsRenderer(CurveRenderer):

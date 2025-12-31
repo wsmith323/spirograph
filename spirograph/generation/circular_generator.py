@@ -2,7 +2,8 @@ import math
 
 from .generator import CurveGenerator
 from .requests import CircularSpiroRequest
-from .types import GeneratedCurve, Point2D, PointSpan, SpanKind, SpiroType
+from .constants import SpanKind, SpiroType
+from .data_types import GeneratedCurve, Point2D, PointSpan
 
 
 class CircularSpiroGenerator(CurveGenerator[CircularSpiroRequest]):

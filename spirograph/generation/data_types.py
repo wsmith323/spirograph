@@ -1,18 +1,12 @@
-from __future__ import annotations
-
 from dataclasses import dataclass, field
-from enum import Enum
+
+from .constants import SpanKind
 
 
 @dataclass(frozen=True, slots=True)
 class Point2D:
     x: float
     y: float
-
-
-class SpanKind(Enum):
-    LAP = 'LAP'
-    SPIN = 'SPIN'
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,8 +38,3 @@ class GeneratedCurve:
         for span in self.spans:
             if span.start_index < 0 or span.end_index > max_index:
                 raise ValueError('span indices must be within points bounds')
-
-
-class SpiroType(Enum):
-    HYPOTROCHOID = 'hypotrochoid'
-    EPITROCHOID = 'epitrochoid'

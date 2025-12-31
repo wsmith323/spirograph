@@ -1,6 +1,7 @@
 from .builder import RenderPlanBuilder
+from .constants import ColorMode
+from .data_types import CurveRenderer, DrawablePath, RenderPlan, Color, RenderSettings
 from .turtle_renderer import TurtleGraphicsRenderer
-from .types import CurveRenderer, DrawablePath, RenderPlan, Color, ColorMode, RenderSettings
 
 __all__ = [
     'Color',

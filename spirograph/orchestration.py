@@ -2,7 +2,7 @@ from spirograph.generation.registry import GeneratorRegistry
 from spirograph.generation.requests import EngineRequest
 from spirograph.rendering import RenderSettings
 from spirograph.rendering.builder import RenderPlanBuilder
-from spirograph.rendering.types import CurveRenderer
+from spirograph.rendering.data_types import CurveRenderer
 
 
 class CurveOrchestrator:

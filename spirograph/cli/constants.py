@@ -4,6 +4,7 @@ from enum import Enum
 class RandomComplexity(Enum):
     SIMPLE = 'simple'
     MEDIUM = 'medium'
+    COMPLEX = 'complex'
     DENSE = 'dense'
 
 

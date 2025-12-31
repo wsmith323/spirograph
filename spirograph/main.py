@@ -20,8 +20,9 @@ from .cli.prompts import (
     prompt_positive_int,
     prompt_positive_int_or_random,
 )
-from .cli.random import (
+from .cli.randomness import (
     random_fixed_circle_radius,
+    random_fixed_circle_radius_for,
     random_pen_offset,
     random_rolling_circle_radius,
 )
@@ -135,7 +136,7 @@ def build_request(
 
 def generate_random_request(session: CliSessionState) -> CircularSpiroRequest:
     if session.locked_fixed_radius is None:
-        fixed_radius = random_fixed_circle_radius(session.last_request, session.random_evolution_mode)
+        fixed_radius = random_fixed_circle_radius(session)
     else:
         fixed_radius = session.locked_fixed_radius
 
@@ -184,7 +185,7 @@ def edit_geometry(session: CliSessionState) -> CircularSpiroRequest:
     fixed_radius = prompt_positive_int_or_random(
         'fixed_circle_radius',
         int(previous_request.fixed_radius) if previous_request else None,
-        lambda: random_fixed_circle_radius(previous_request, session.random_evolution_mode),
+        lambda: random_fixed_circle_radius_for(previous_request, session),
     )
 
     guide_before_rolling_radius(fixed_radius, previous_request)

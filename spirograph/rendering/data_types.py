@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from enum import Enum
 
-from spirograph.generation.types import Point2D
+from spirograph.generation.data_types import Point2D
+
+from .constants import ColorMode
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,15 +38,6 @@ class CurveRenderer(ABC):
     @abstractmethod
     def render(self, plan: RenderPlan, settings: 'RenderSettings') -> None:
         raise NotImplementedError
-
-
-class ColorMode(Enum):
-    FIXED = 'fixed'
-    RANDOM_PER_RUN = 'random_per_run'
-    RANDOM_PER_LAP = 'random_per_lap'
-    RANDOM_EVERY_N_LAPS = 'random_every_n_laps'
-    RANDOM_PER_SPIN = 'random_per_spin'
-    RANDOM_EVERY_N_SPINS = 'random_every_n_spins'
 
 
 @dataclass(frozen=True, slots=True)

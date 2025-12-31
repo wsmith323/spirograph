@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Protocol
 
-from .types import SpiroType
+from .constants import SpiroType
 
 
 class EngineRequest(Protocol):
