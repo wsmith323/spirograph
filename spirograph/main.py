@@ -42,13 +42,18 @@ MAX_LAPS_TO_CLOSE = 200
 
 MENU_TEXT = """
 Next action:
-[Enter]  Generate next random curve (same settings)
-b        Batch: run N random curves with a pause in between
-l        Locks: set fixed values for random runs (R/r/d)
-e        Edit R / r / d
-s        Session settings
-p        Print detailed analysis of current curve
-q        Quit
+Geometry:
+    m - Manually input R, r, and d
+    a - Print analysis of current curve
+Session:
+    e - Edit Session settings
+    p - Print session settings
+Random:
+    b - Batch: run N random curves with a pause in between
+    l - Locks: set fixed values for random runs (R/r/d)
+    [Enter] - Generate next random curve (same settings)
+Program:
+    q - Quit
 """
 
 
@@ -89,11 +94,14 @@ def print_session_status(session: CliSessionState) -> None:
 Current session settings:
 Geometry:     
     Curve Type: {session.curve_type.value.title()}
-Randomness:
-    Locks: R:{r_lock}, r:{rr_lock}, d:{d_lock}'
+Random:
     Complexity: {session.random_complexity.value.title()}
     Constraint: {session.random_constraint_mode.value.title()}
     Evolution: {session.random_evolution_mode.value.title()}
+    Locks:
+        R:{r_lock}
+        r:{rr_lock}
+        d:{d_lock}
 Color:
     Mode: {session.color_mode.value}
     Fixed color: {session.color.as_hex}
@@ -106,7 +114,6 @@ Drawing:
 
 
 def print_menu(session: CliSessionState) -> None:
-    print()
     print(MENU_TEXT)
 
 
@@ -292,56 +299,61 @@ def main() -> None:
         print_menu(session)
         command = input('> ').strip().lower()
 
-        if command == 'q':
-            break
+        match command:
+            case 'q':
+                break
 
-        if command == 'p':
-            if session.last_request is None:
-                print('No curve yet. Press Enter to generate one, or use e to edit values.')
-            else:
-                describe_curve(session.last_request)
-            continue
+            case 'a':
+                if session.last_request is None:
+                    print('No curve yet. Press Enter to generate one, or use e to edit values.')
+                else:
+                    describe_curve(session.last_request)
+                continue
 
-        if command == 'b':
-            count = prompt_positive_int('batch_count', default_value=10)
-            pause_seconds = prompt_non_negative_float('pause_seconds', default_value=2.0)
+            case 'b':
+                count = prompt_positive_int('batch_count', default_value=10)
+                pause_seconds = prompt_non_negative_float('pause_seconds', default_value=2.0)
 
-            for _ in range(count):
-                request = generate_random_request(session)
+                for _ in range(count):
+                    request = generate_random_request(session)
+                    session.last_request = request
+
+                    print_selected_parameters(request, session)
+                    describe_curve(request)
+                    render_request(orchestrator, request, session)
+                    time.sleep(pause_seconds)
+
+                continue
+
+            case 'l':
+                edit_locks(session)
+                continue
+
+            case 'e':
+                edit_session_settings(session)
+                continue
+
+            case 'm':
+                request = edit_geometry(session)
                 session.last_request = request
-
                 print_selected_parameters(request, session)
                 describe_curve(request)
                 render_request(orchestrator, request, session)
-                time.sleep(pause_seconds)
+                continue
 
-            continue
+            case 'p':
+                print_session_status(session)
 
-        if command == 'l':
-            edit_locks(session)
-            continue
+            case '':
+                request = generate_random_request(session)
+                session.last_request = request
+                print_selected_parameters(request, session)
+                describe_curve(request)
+                render_request(orchestrator, request, session)
 
-        if command == 's':
-            edit_session_settings(session)
-            continue
-
-        if command == 'e':
-            request = edit_geometry(session)
-            session.last_request = request
-            print_selected_parameters(request, session)
-            describe_curve(request)
-            render_request(orchestrator, request, session)
-            continue
-
-        if command != '':
-            print('Unknown command. Press Enter for next random, or use b/l/e/s/t/p/q.')
-            continue
-
-        request = generate_random_request(session)
-        session.last_request = request
-        print_selected_parameters(request, session)
-        describe_curve(request)
-        render_request(orchestrator, request, session)
+            case _:
+                print('Unknown command')
+                continue
 
 
 if __name__ == '__main__':
