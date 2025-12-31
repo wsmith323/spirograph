@@ -1,10 +1,10 @@
-import turtle
-
 from .data_types import CurveRenderer, RenderPlan, RenderSettings
 
 
 class TurtleGraphicsRenderer(CurveRenderer):
     def __init__(self) -> None:
+        import turtle
+
         self._screen = turtle.Screen()
         self._screen.setup(width=1000, height=1000)
         self._screen.colormode(255)
