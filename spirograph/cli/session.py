@@ -1,10 +1,8 @@
 from dataclasses import dataclass
 
-from spirograph.generation.requests import CircularSpiroRequest, SpiroType
-from spirograph.rendering.settings import ColorMode
-from spirograph.rendering.types import Color
-
-from .prompts import RandomComplexity, RandomConstraintMode, RandomEvolutionMode
+from spirograph.generation import CircularSpiroRequest, SpiroType
+from spirograph.rendering import ColorMode, Color
+from .types import RandomComplexity, RandomConstraintMode, RandomEvolutionMode
 
 
 @dataclass(slots=True)

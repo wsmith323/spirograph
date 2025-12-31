@@ -1,8 +1,8 @@
 import math
 
 from .generator import CurveGenerator
-from .requests import CircularSpiroRequest, SpiroType
-from .types import GeneratedCurve, Point2D, PointSpan, SpanKind
+from .requests import CircularSpiroRequest
+from .types import GeneratedCurve, Point2D, PointSpan, SpanKind, SpiroType
 
 
 class CircularSpiroGenerator(CurveGenerator[CircularSpiroRequest]):
@@ -10,13 +10,13 @@ class CircularSpiroGenerator(CurveGenerator[CircularSpiroRequest]):
 
     def validate(self, request: CircularSpiroRequest) -> None:
         if request.fixed_radius <= 0:
-            raise ValueError("fixed_radius must be > 0")
+            raise ValueError('fixed_radius must be > 0')
         if request.rolling_radius <= 0:
-            raise ValueError("rolling_radius must be > 0")
+            raise ValueError('rolling_radius must be > 0')
         if request.pen_distance < 0:
-            raise ValueError("pen_distance must be >= 0")
+            raise ValueError('pen_distance must be >= 0')
         if request.steps <= 0:
-            raise ValueError("steps must be > 0")
+            raise ValueError('steps must be > 0')
 
     def generate(self, request: CircularSpiroRequest) -> GeneratedCurve:
         self.validate(request)
@@ -108,5 +108,5 @@ class CircularSpiroGenerator(CurveGenerator[CircularSpiroRequest]):
         return GeneratedCurve(
             points=tuple(points),
             spans=tuple(lap_spans + spin_spans),
-            metadata={"laps_to_close": laps_to_close},
+            metadata={'laps_to_close': laps_to_close},
         )

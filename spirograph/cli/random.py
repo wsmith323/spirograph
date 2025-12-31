@@ -1,9 +1,9 @@
-import math
 import random
 
-from spirograph.generation.requests import CircularSpiroRequest
+import math
 
-from .prompts import RandomComplexity, RandomConstraintMode, RandomEvolutionMode
+from spirograph.generation.requests import CircularSpiroRequest
+from .types import RandomComplexity, RandomConstraintMode, RandomEvolutionMode
 
 
 def evolve_value(
@@ -26,9 +26,7 @@ def evolve_value(
     return max(base_min, min(base_max, previous + random.randint(-drift, drift)))
 
 
-def random_fixed_circle_radius(
-    prev: CircularSpiroRequest | None, evolution: RandomEvolutionMode
-) -> int:
+def random_fixed_circle_radius(prev: CircularSpiroRequest | None, evolution: RandomEvolutionMode) -> int:
     base_min, base_max = 100, 320
     prev_val = int(prev.fixed_radius) if prev else None
     return evolve_value(prev_val, base_min, base_max, evolution)

@@ -1,89 +1,69 @@
-import math
-from enum import Enum
 from typing import Callable
 
-from spirograph.generation.requests import SpiroType
-from spirograph.rendering.settings import ColorMode
-from spirograph.rendering.types import Color
+import math
 
-
-class RandomComplexity(Enum):
-    SIMPLE = "simple"
-    MEDIUM = "medium"
-    DENSE = "dense"
-
-
-class RandomConstraintMode(Enum):
-    PHYSICAL = "physical"
-    EXTENDED = "extended"
-    WILD = "wild"
-
-
-class RandomEvolutionMode(Enum):
-    RANDOM = "random"
-    DRIFT = "drift"
-    JUMP = "jump"
+from spirograph.generation import SpiroType
+from spirograph.rendering import Color, ColorMode
+from .types import RandomComplexity, RandomConstraintMode, RandomEvolutionMode
 
 
 def make_prompt_label(identifier: str) -> str:
-    return " ".join(word.capitalize() for word in identifier.split("_"))
+    return ' '.join(word.capitalize() for word in identifier.split('_'))
 
 
 def prompt_enum(label: str, enum_cls, default):
     values = list(enum_cls)
     descriptions_by_enum = {
         RandomComplexity: {
-            RandomComplexity.SIMPLE: "Cleaner, fewer lobes; tends to look more symmetric.",
-            RandomComplexity.MEDIUM: "Balanced defaults; usually pretty.",
-            RandomComplexity.DENSE: "More lobes and detail; tends to close slower and look busier.",
+            RandomComplexity.SIMPLE: 'Cleaner, fewer lobes; tends to look more symmetric.',
+            RandomComplexity.MEDIUM: 'Balanced defaults; usually pretty.',
+            RandomComplexity.DENSE: 'More lobes and detail; tends to close slower and look busier.',
         },
         RandomConstraintMode: {
-            RandomConstraintMode.PHYSICAL: "Stay close to real spirograph constraints.",
-            RandomConstraintMode.EXTENDED: "Allow r > R and d > r; more loopiness.",
-            RandomConstraintMode.WILD: "Very permissive; frequent self-intersections and chaos.",
+            RandomConstraintMode.PHYSICAL: 'Stay close to real spirograph constraints.',
+            RandomConstraintMode.EXTENDED: 'Allow r > R and d > r; more loopiness.',
+            RandomConstraintMode.WILD: 'Very permissive; frequent self-intersections and chaos.',
         },
         RandomEvolutionMode: {
-            RandomEvolutionMode.RANDOM: "Ignores the previous run; fresh random each time.",
-            RandomEvolutionMode.DRIFT: "Random, but centered near the previous value.",
-            RandomEvolutionMode.JUMP: "Mostly drift with occasional big changes.",
+            RandomEvolutionMode.RANDOM: 'Ignores the previous run; fresh random each time.',
+            RandomEvolutionMode.DRIFT: 'Random, but centered near the previous value.',
+            RandomEvolutionMode.JUMP: 'Mostly drift with occasional big changes.',
         },
         ColorMode: {
-            ColorMode.FIXED: "Use the configured color for all drawing.",
-            ColorMode.RANDOM_PER_RUN: "Choose a random color for each new curve.",
-            ColorMode.RANDOM_PER_LAP: "Change to a new random color each lap around the track.",
-            ColorMode.RANDOM_EVERY_N_LAPS: "Change to a new random color every N laps around the track.",
-            ColorMode.RANDOM_PER_SPIN: "Change to a new random color each spin of the rolling circle.",
-            ColorMode.RANDOM_EVERY_N_SPINS: "Change to a new random color every N spins of the rolling circle.",
+            ColorMode.FIXED: 'Use the configured color for all drawing.',
+            ColorMode.RANDOM_PER_RUN: 'Choose a random color for each new curve.',
+            ColorMode.RANDOM_PER_LAP: 'Change to a new random color each lap around the track.',
+            ColorMode.RANDOM_EVERY_N_LAPS: 'Change to a new random color every N laps around the track.',
+            ColorMode.RANDOM_PER_SPIN: 'Change to a new random color each spin of the rolling circle.',
+            ColorMode.RANDOM_EVERY_N_SPINS: 'Change to a new random color every N spins of the rolling circle.',
         },
     }
     descriptions = descriptions_by_enum.get(enum_cls, {})
 
     while True:
-        print(f"{label}:")
+        print(f'{label}:')
         for index, value in enumerate(values, start=1):
             description = descriptions.get(value)
             if description:
-                print(f"  {index}. {value.value} - {description}")
+                print(f'  {index}. {value.value} - {description}')
             else:
-                print(f"  {index}. {value.value}")
+                print(f'  {index}. {value.value}')
 
         default_index = values.index(default) + 1
-        raw_value = input(
-            f"Select {label} [1-{len(values)}] [{default_index}]: "
-        ).strip()
-        if raw_value == "":
+        raw_value = input(f'Select {label} [1-{len(values)}] [{default_index}]: ').strip()
+        if raw_value == '':
             return default
 
         try:
             idx = int(raw_value) - 1
         except ValueError:
-            print("Invalid choice.")
+            print('Invalid choice.')
             continue
 
         if 0 <= idx < len(values):
             return values[idx]
 
-        print("Invalid choice.")
+        print('Invalid choice.')
 
 
 def prompt_positive_int(identifier: str, default_value: int | None = None) -> int:
@@ -91,20 +71,20 @@ def prompt_positive_int(identifier: str, default_value: int | None = None) -> in
 
     while True:
         if default_value is not None:
-            raw_value = input(f"{label} [{default_value}]: ").strip()
-            if raw_value == "":
+            raw_value = input(f'{label} [{default_value}]: ').strip()
+            if raw_value == '':
                 return default_value
         else:
-            raw_value = input(f"{label}: ").strip()
+            raw_value = input(f'{label}: ').strip()
 
         try:
             parsed_value = int(raw_value)
         except ValueError:
-            print("Please enter a valid integer.")
+            print('Please enter a valid integer.')
             continue
 
         if parsed_value <= 0:
-            print("Please enter a positive integer.")
+            print('Please enter a positive integer.')
             continue
 
         return parsed_value
@@ -114,29 +94,21 @@ def prompt_non_negative_float(identifier: str, default_value: float) -> float:
     label = make_prompt_label(identifier)
 
     while True:
-        raw_value = input(f"{label} [{default_value}]: ").strip()
-        if raw_value == "":
+        raw_value = input(f'{label} [{default_value}]: ').strip()
+        if raw_value == '':
             return default_value
 
         try:
             value = float(raw_value)
         except ValueError:
-            print("Please enter a valid number.")
+            print('Please enter a valid number.')
             continue
 
         if value < 0:
-            print("Please enter a non-negative number.")
+            print('Please enter a non-negative number.')
             continue
 
         return value
-
-
-def prompt_string_with_default(identifier: str, default_value: str) -> str:
-    label = make_prompt_label(identifier)
-    raw_value = input(f"{label} [{default_value}]: ").strip()
-    if raw_value == "":
-        return default_value
-    return raw_value
 
 
 def prompt_positive_int_or_random(
@@ -146,15 +118,15 @@ def prompt_positive_int_or_random(
 ) -> int:
     label = make_prompt_label(identifier)
     while True:
-        suffix = f" [{default_value}]" if default_value is not None else ""
+        suffix = f' [{default_value}]' if default_value is not None else ''
         raw_value = input(f"{label}{suffix} (or 'r'): ").strip()
 
-        if raw_value.lower() in ("r", "rand"):
+        if raw_value.lower() in ('r', 'rand'):
             value = random_factory()
-            print(f"  Selected random {label}: {value}")
+            print(f'  Selected random {label}: {value}')
             return value
 
-        if raw_value == "" and default_value is not None:
+        if raw_value == '' and default_value is not None:
             return default_value
 
         try:
@@ -164,28 +136,28 @@ def prompt_positive_int_or_random(
             continue
 
         if value <= 0:
-            print("Please enter a positive integer.")
+            print('Please enter a positive integer.')
             continue
 
         return value
 
 
 def prompt_drawing_speed(current_speed: int) -> int:
-    label = "Drawing speed [1 (slow) - 10 (fast)]"
+    label = 'Drawing speed [1 (slow) - 10 (fast)]'
 
     while True:
-        raw_value = input(f"{label} [{current_speed}]: ").strip()
-        if raw_value == "":
+        raw_value = input(f'{label} [{current_speed}]: ').strip()
+        if raw_value == '':
             return current_speed
 
         try:
             parsed_value = int(raw_value)
         except ValueError:
-            print("Please enter a valid integer between 1 and 10.")
+            print('Please enter a valid integer between 1 and 10.')
             continue
 
         if not 1 <= parsed_value <= 10:
-            print("Please enter a value between 1 and 10.")
+            print('Please enter a value between 1 and 10.')
             continue
 
         return parsed_value
@@ -193,15 +165,13 @@ def prompt_drawing_speed(current_speed: int) -> int:
 
 def prompt_lock_value(identifier: str, current_value: int | None) -> int | None:
     label = make_prompt_label(identifier)
-    current_display = "r" if current_value is None else str(current_value)
+    current_display = 'r' if current_value is None else str(current_value)
 
     while True:
-        raw_value = (
-            input(f"{label} lock [{current_display}] (number or 'r'): ").strip().lower()
-        )
-        if raw_value == "":
+        raw_value = input(f"{label} lock [{current_display}] (number or 'r'): ").strip().lower()
+        if raw_value == '':
             return current_value
-        if raw_value in ("r", "rand", "random"):
+        if raw_value in ('r', 'rand', 'random'):
             return None
 
         try:
@@ -211,7 +181,7 @@ def prompt_lock_value(identifier: str, current_value: int | None) -> int | None:
             continue
 
         if parsed_value <= 0:
-            print("Please enter a positive integer.")
+            print('Please enter a positive integer.')
             continue
 
         return parsed_value
@@ -219,25 +189,25 @@ def prompt_lock_value(identifier: str, current_value: int | None) -> int | None:
 
 def parse_color(value: str, default: Color) -> Color:
     cleaned = value.strip().lower()
-    if cleaned == "":
+    if cleaned == '':
         return default
 
     named_colors = {
-        "black": Color(0, 0, 0),
-        "white": Color(255, 255, 255),
-        "red": Color(255, 0, 0),
-        "green": Color(0, 128, 0),
-        "blue": Color(0, 0, 255),
-        "yellow": Color(255, 255, 0),
-        "cyan": Color(0, 255, 255),
-        "magenta": Color(255, 0, 255),
-        "gray": Color(128, 128, 128),
-        "grey": Color(128, 128, 128),
+        'black': Color(0, 0, 0),
+        'white': Color(255, 255, 255),
+        'red': Color(255, 0, 0),
+        'green': Color(0, 128, 0),
+        'blue': Color(0, 0, 255),
+        'yellow': Color(255, 255, 0),
+        'cyan': Color(0, 255, 255),
+        'magenta': Color(255, 0, 255),
+        'gray': Color(128, 128, 128),
+        'grey': Color(128, 128, 128),
     }
     if cleaned in named_colors:
         return named_colors[cleaned]
 
-    if cleaned.startswith("#"):
+    if cleaned.startswith('#'):
         cleaned = cleaned[1:]
 
     if len(cleaned) == 6:
@@ -249,8 +219,8 @@ def parse_color(value: str, default: Color) -> Color:
             return default
         return Color(r, g, b)
 
-    if "," in cleaned:
-        parts = [part.strip() for part in cleaned.split(",")]
+    if ',' in cleaned:
+        parts = [part.strip() for part in cleaned.split(',')]
         if len(parts) == 3:
             try:
                 r, g, b = (int(part) for part in parts)

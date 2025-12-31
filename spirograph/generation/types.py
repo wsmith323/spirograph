@@ -11,8 +11,8 @@ class Point2D:
 
 
 class SpanKind(Enum):
-    LAP = "LAP"
-    SPIN = "SPIN"
+    LAP = 'LAP'
+    SPIN = 'SPIN'
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,11 +24,11 @@ class PointSpan:
 
     def __post_init__(self) -> None:
         if self.start_index < 0:
-            raise ValueError("start_index must be >= 0")
+            raise ValueError('start_index must be >= 0')
         if self.end_index <= self.start_index:
-            raise ValueError("end_index must be > start_index")
+            raise ValueError('end_index must be > start_index')
         if self.ordinal < 0:
-            raise ValueError("ordinal must be >= 0")
+            raise ValueError('ordinal must be >= 0')
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,8 +39,13 @@ class GeneratedCurve:
 
     def __post_init__(self) -> None:
         if len(self.points) <= 1:
-            raise ValueError("points must contain at least 2 entries")
+            raise ValueError('points must contain at least 2 entries')
         max_index = len(self.points)
         for span in self.spans:
             if span.start_index < 0 or span.end_index > max_index:
-                raise ValueError("span indices must be within points bounds")
+                raise ValueError('span indices must be within points bounds')
+
+
+class SpiroType(Enum):
+    HYPOTROCHOID = 'hypotrochoid'
+    EPITROCHOID = 'epitrochoid'

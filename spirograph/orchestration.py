@@ -1,7 +1,7 @@
 from spirograph.generation.registry import GeneratorRegistry
 from spirograph.generation.requests import EngineRequest
+from spirograph.rendering import RenderSettings
 from spirograph.rendering.builder import RenderPlanBuilder
-from spirograph.rendering.settings import RenderSettings
 from spirograph.rendering.types import CurveRenderer
 
 
