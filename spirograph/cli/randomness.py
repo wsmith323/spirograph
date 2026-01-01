@@ -38,7 +38,7 @@ COMPLEXITY_PROFILES: dict[RandomComplexity, ComplexityProfile] = {
     RandomComplexity.SIMPLE: ComplexityProfile(
         ratio_min=1.15,
         ratio_max=2.2,
-        lobes_ranges=[(6, 14)],
+        lobes_ranges=[(6, 18)],
         laps_target=6.0,
         laps_tolerance=4.0,
         laps_max_hard=24,
@@ -59,7 +59,7 @@ COMPLEXITY_PROFILES: dict[RandomComplexity, ComplexityProfile] = {
     RandomComplexity.MEDIUM: ComplexityProfile(
         ratio_min=2.2,
         ratio_max=4.5,
-        lobes_ranges=[(10, 26)],
+        lobes_ranges=[(10, 50)],
         laps_target=10.0,
         laps_tolerance=6.0,
         laps_max_hard=48,
@@ -80,7 +80,7 @@ COMPLEXITY_PROFILES: dict[RandomComplexity, ComplexityProfile] = {
     RandomComplexity.COMPLEX: ComplexityProfile(
         ratio_min=4.5,
         ratio_max=7.5,
-        lobes_ranges=[(20, 60)],
+        lobes_ranges=[(20, 140)],
         laps_target=14.0,
         laps_tolerance=8.0,
         laps_max_hard=72,
@@ -94,21 +94,21 @@ COMPLEXITY_PROFILES: dict[RandomComplexity, ComplexityProfile] = {
         # ratio_sample_bias: positive values bias sampling toward the high end of the ratio window (smaller r, more lobes).
         # Keep this modest to avoid Turtle "band saturation" and preserve visible variety.
         ratio_sample_bias=0.15,
-        avoid_gcd_eq_1=True,
+        avoid_gcd_eq_1=False,
         constructed_m_candidates=36,
         constructed_top_n=14,
         sample_count=300,
         lobes_retry_count=4,
     ),
     RandomComplexity.DENSE: ComplexityProfile(
-        ratio_min=7.5,
-        ratio_max=16.0,
-        lobes_ranges=[(20, 100)],
+        ratio_min=6.0,
+        ratio_max=14.0,
+        lobes_ranges=[(40, 260)],
         laps_target=18.0,
         laps_tolerance=12.0,
         laps_max_hard=96,
         offset_min_factor=0.15,
-        offset_max_factor=2.20,
+        offset_max_factor=6.25,
         diff_min=5,
         fixed_radius_step=None,
         fallback_ratio_slack=1.00,
@@ -117,7 +117,7 @@ COMPLEXITY_PROFILES: dict[RandomComplexity, ComplexityProfile] = {
         # ratio_sample_bias: positive values bias sampling toward the high end of the ratio window (smaller r, more lobes).
         # Keep this modest to avoid Turtle "band saturation" and preserve visible variety.
         ratio_sample_bias=0.35,
-        avoid_gcd_eq_1=True,
+        avoid_gcd_eq_1=False,
         constructed_m_candidates=36,
         constructed_top_n=20,
         sample_count=450,
@@ -1093,7 +1093,6 @@ def random_pen_offset(
     if constraint == RandomConstraintMode.WILD:
         d_max = int(d_max * 1.5)
         d_max = max(d_min, d_max)
-    effective_max = d_max
 
     diff = abs(int(fixed_radius) - int(rolling_radius))
     ratio = (float(fixed_radius) / float(rolling_radius)) if rolling_radius else float('inf')
@@ -1157,24 +1156,49 @@ def random_pen_offset(
         if use_r_floor:
             effective_min = max(effective_min, floor_r)
 
+        max_factor = profile.offset_max_factor * (1.5 if constraint is RandomConstraintMode.WILD else 1.0)
+        effective_max = int(max(effective_min, math.floor(max_factor * rolling_radius)))
+
         # Clamp diff-band to the effective allowed pen-distance range so it cannot produce out-of-band d/r.
         diff_low_eff = max(int(effective_min), int(diff_low))
         diff_high_eff = min(int(effective_max), int(diff_high))
         diff_eff_empty = diff_high_eff < diff_low_eff
 
-        # Mid-band: bridge between r_scaled's high end (d_max) and the effective diff-band low (diff_low_eff).
-        # Use a stable center and a span that scales with the gap, with a non-trivial minimum.
-        mid_anchor_low = int(d_max)
-        mid_anchor_high = int(diff_low_eff)
+        mid_expanded = False
+        # Mid-band: a stable bridge interval around d_max that overlaps the r_scaled high end and reaches outward.
+        # This must not collapse to a single value unless the effective range itself is a single value.
+        #
+        # Intuition:
+        # - Anchor at d_max (top of r_scaled).
+        # - Expand upward by a gap-derived amount when diff-band is feasible, otherwise expand by a radius-scaled amount.
+        # - Always enforce a minimum width so mid-band acts as a continuum, not a snap point.
 
-        mid_center = int(round((mid_anchor_low + mid_anchor_high) / 2.0))
+        # Minimum half-span scales with rolling radius; never tiny.
+        mid_half_min = max(8, int(round(0.12 * max(1, rolling_radius))))
 
-        gap = max(0, mid_anchor_high - mid_anchor_low)
-        min_span = max(6, int(round(0.15 * max(1, rolling_radius))))
-        mid_span = max(min_span, int(round(0.45 * gap)))
+        if not diff_eff_empty:
+            # Gap between r_scaled top and diff-band low (effective), but bounded.
+            gap_up = max(0, int(diff_low_eff) - int(d_max))
+            # Use a fraction of the gap, with a floor at mid_half_min.
+            mid_half_up = max(mid_half_min, int(round(0.55 * gap_up)))
+        else:
+            # No diff-band: still provide outward bridge above d_max.
+            mid_half_up = max(mid_half_min, int(round(0.30 * max(1, rolling_radius))))
 
-        mid_low = max(int(effective_min), mid_center - mid_span)
-        mid_high = min(int(effective_max), mid_center + mid_span)
+        # Allow some room below d_max to overlap r_scaled and avoid hard discontinuities.
+        mid_half_down = max(mid_half_min, int(round(0.60 * mid_half_up)))
+
+        mid_low = max(int(effective_min), int(d_max) - mid_half_down)
+        mid_high = min(int(effective_max), int(d_max) + mid_half_up)
+
+        # If clamping collapsed the interval, try to expand within effective bounds.
+        if mid_high - mid_low < (2 * mid_half_min):
+            target_low = max(int(effective_min), int(d_max) - mid_half_min)
+            target_high = min(int(effective_max), int(d_max) + mid_half_min)
+            if target_high > target_low:
+                mid_low, mid_high = target_low, target_high
+                mid_expanded = True
+
         mid_empty = mid_high < mid_low
 
         # Rebalanced weights:
@@ -1282,6 +1306,11 @@ def random_pen_offset(
                 used_diff_band=False,
                 selection_mode='r_scaled',
                 mode_weights={'w_r': w_r, 'w_mid': w_mid, 'w_diff': w_diff},
+                mid_width=(int(mid_high) - int(mid_low) + 1) if not mid_empty else 0,
+                mid_expanded=mid_expanded,
+                mid_half_min=mid_half_min,
+                mid_half_up=mid_half_up,
+                mid_half_down=mid_half_down,
                 mid_low=mid_low,
                 mid_high=mid_high,
                 mid_empty=mid_empty,
@@ -1302,6 +1331,8 @@ def random_pen_offset(
         width_share: float | None = None
         left_interval: tuple[int, int] | None = None
         right_interval: tuple[int, int] | None = None
+        right_share = 0.0
+        scale = 1.0
 
         clean = [(lo, hi) for lo, hi in allowed if lo <= hi]
         if len(clean) == 2:
@@ -1325,11 +1356,30 @@ def random_pen_offset(
                     high_pref_effective = min(high_pref_effective, 0.55)
                 elif w_left <= 4:
                     high_pref_effective = min(high_pref_effective, 0.60)
+        # Scale high preference by how large the "high" (rightmost) interval is relative to total width.
+        # If the high interval is narrow, reduce the tendency to pick it.
+        w_left_int = int(w_left) if w_left is not None else 0
+        w_right_int = int(w_right) if w_right is not None else 0
+        w_total = w_left_int + w_right_int
+
+        right_share = (w_right_int / w_total) if w_total > 0 else 0.0
+
+        # Map right_share in [0, 1] -> scale in [0.15, 1.0], with a gentle floor.
+        # Example: right_share=0.20 -> scale≈0.40; right_share=0.60 -> scale≈0.70
+        scale = _clamp01(0.25 + 0.75 * right_share)
+        scale = max(0.15, scale)
+
+        high_pref_effective_pre_scale = high_pref_effective
+        high_pref_effective = _clamp01(float(high_pref_effective) * float(scale))
         if selection_mode == 'diff_band':
             final_low, final_high = diff_low_eff, diff_high_eff
             chosen_d = random.randint(final_low, final_high)
         elif selection_mode == 'mid_band':
             final_low, final_high = mid_low, mid_high
+            if final_low == final_high and int(effective_max) > int(effective_min):
+                # Widen minimally if possible.
+                final_low = max(int(effective_min), final_low - 1)
+                final_high = min(int(effective_max), final_high + 1)
             chosen_d = random.randint(final_low, final_high)
         else:
             chosen_d = _randint_from_intervals_with_high_bias(
@@ -1393,6 +1443,11 @@ def random_pen_offset(
             used_diff_band=selection_mode == 'diff_band',
             selection_mode=selection_mode,
             mode_weights={'w_r': w_r, 'w_mid': w_mid, 'w_diff': w_diff},
+            mid_width=(int(mid_high) - int(mid_low) + 1) if not mid_empty else 0,
+            mid_expanded=mid_expanded,
+            mid_half_min=mid_half_min,
+            mid_half_up=mid_half_up,
+            mid_half_down=mid_half_down,
             mid_low=mid_low,
             mid_high=mid_high,
             mid_empty=mid_empty,
@@ -1406,9 +1461,13 @@ def random_pen_offset(
             high_pref=high_pref,
             high_pref_base=high_pref_base,
             high_pref_effective=high_pref_effective,
+            high_pref_effective_pre_scale=high_pref_effective_pre_scale,
             interval_w_left=w_left,
             interval_w_right=w_right,
             interval_width_share=width_share,
+            right_share=right_share,
+            high_pref_scale=scale,
+            high_pref_effective_scaled=high_pref_effective,
             used_fallback_full_range=used_fallback_full_range,
             chosen_d=chosen_d,
             chosen_factor=chosen_factor,

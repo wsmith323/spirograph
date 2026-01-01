@@ -72,6 +72,26 @@ def summarize_ints(values: list[int]) -> dict[str, float]:
     return summarize_floats([float(x) for x in values])
 
 
+def pearson_corr_for(xs: list[float], ys: list[float]) -> float:
+    if len(xs) < 2 or len(xs) != len(ys):
+        return float('nan')
+    mean_x = statistics.fmean(xs)
+    mean_y = statistics.fmean(ys)
+    cov = 0.0
+    var_x = 0.0
+    var_y = 0.0
+    for x, y in zip(xs, ys):
+        dx = x - mean_x
+        dy = y - mean_y
+        cov += dx * dy
+        var_x += dx * dx
+        var_y += dy * dy
+    denom = math.sqrt(var_x * var_y)
+    if denom == 0.0:
+        return float('nan')
+    return cov / denom
+
+
 def radial_span_norm_for(R: int, r: int, d: int) -> float:
     if R <= 0 or r <= 0 or d <= 0:
         return float('inf')
@@ -117,6 +137,130 @@ def radial_span_norm_for(R: int, r: int, d: int) -> float:
     return (rho_max - rho_min) / rho_max
 
 
+def rho_min_over_max_for(R: int, r: int, d: int) -> float:
+    if R <= 0 or r <= 0 or d <= 0:
+        return float('inf')
+
+    g = math.gcd(R, r)
+    laps = max(1, r // max(1, g))
+
+    steps = 360 * laps
+    steps = max(360, steps)
+    steps = min(3000, steps)
+
+    inside = r <= R
+    a = (R - r) if inside else (R + r)
+    a_over_r = a / float(r)
+
+    rho_min = float('inf')
+    rho_max = 0.0
+
+    t_max = 2.0 * math.pi * laps
+    for i in range(steps + 1):
+        t = (t_max * i) / steps
+        ct = math.cos(t)
+        st = math.sin(t)
+        c2 = math.cos(a_over_r * t)
+        s2 = math.sin(a_over_r * t)
+
+        if inside:
+            x = a * ct + d * c2
+            y = a * st - d * s2
+        else:
+            x = a * ct - d * c2
+            y = a * st - d * s2
+
+        rho = math.hypot(x, y)
+        if rho < rho_min:
+            rho_min = rho
+        if rho > rho_max:
+            rho_max = rho
+
+    if rho_max <= 0.0 or not math.isfinite(rho_min):
+        return float('inf')
+
+    return rho_min / rho_max
+
+
+def sharpness_p95_abs_turn_rad_for(R: int, r: int, d: int) -> float:
+    """
+    Compute a cuspiness/roundness proxy: the 95th percentile of absolute turning angles (radians)
+    between successive segments along the sampled curve.
+
+    Higher => sharper direction changes (pointier lobes).
+    Lower  => smoother turns (rounder lobes).
+    """
+    if R <= 0 or r <= 0 or d <= 0:
+        return float('nan')
+
+    g = math.gcd(R, r)
+    laps = max(1, r // max(1, g))
+
+    # Use the same step sizing policy as radial_span_norm_for / rho_min_over_max_for.
+    steps = 360 * laps
+    steps = max(360, steps)
+    steps = min(3000, steps)
+
+    inside = r <= R
+    a = (R - r) if inside else (R + r)
+    a_over_r = a / float(r)
+
+    # Collect points (x,y). We need at least 3 points for a turning angle.
+    xs: list[float] = []
+    ys: list[float] = []
+    t_max = 2.0 * math.pi * laps
+    for i in range(steps + 1):
+        t = (t_max * i) / steps
+        ct = math.cos(t)
+        st = math.sin(t)
+        c2 = math.cos(a_over_r * t)
+        s2 = math.sin(a_over_r * t)
+
+        if inside:
+            x = a * ct + d * c2
+            y = a * st - d * s2
+        else:
+            x = a * ct - d * c2
+            y = a * st - d * s2
+
+        xs.append(x)
+        ys.append(y)
+
+    if len(xs) < 3:
+        return float('nan')
+
+    # Compute absolute turning angles. For each triple (p0, p1, p2):
+    # angle = atan2(cross(v1, v2), dot(v1, v2)), with v1=p1-p0, v2=p2-p1.
+    abs_turns: list[float] = []
+    for i in range(1, len(xs) - 1):
+        x0, y0 = xs[i - 1], ys[i - 1]
+        x1, y1 = xs[i], ys[i]
+        x2, y2 = xs[i + 1], ys[i + 1]
+
+        v1x, v1y = (x1 - x0), (y1 - y0)
+        v2x, v2y = (x2 - x1), (y2 - y1)
+
+        # Skip degenerate steps.
+        n1 = math.hypot(v1x, v1y)
+        n2 = math.hypot(v2x, v2y)
+        if n1 <= 1e-12 or n2 <= 1e-12:
+            continue
+
+        cross = v1x * v2y - v1y * v2x
+        dot = v1x * v2x + v1y * v2y
+        angle = math.atan2(cross, dot)
+        abs_turns.append(abs(angle))
+
+    if not abs_turns:
+        return float('nan')
+
+    abs_turns.sort()
+    # 95th percentile index (nearest-rank style).
+    idx = int(round(0.95 * (len(abs_turns) - 1)))
+    idx = max(0, min(len(abs_turns) - 1, idx))
+    return abs_turns[idx]
+
+
 def run_for_complexity(
     *,
     complexity: RandomComplexity,
@@ -148,6 +292,8 @@ def run_for_complexity(
     offset_factors: list[float] = []
     ringness_values: list[float] = []
     radial_span_norms: list[float] = []
+    rho_min_over_max_values: list[float] = []
+    sharpness_p95_values: list[float] = []
 
     ratio_outside = 0
     lobes_outside_tolerance = 0
@@ -177,6 +323,8 @@ def run_for_complexity(
     pen_near_one_cap = 5
     pen_bias_samples: list[dict[str, object]] = []
     pen_bias_samples_cap = 8
+    center_reach_samples: list[dict[str, object]] = []
+    center_reach_cap = 8
 
     for _ in range(samples):
         R = int(random_fixed_circle_radius(session))
@@ -314,6 +462,8 @@ def run_for_complexity(
         ringness = (abs(d - r) / denom) if denom else float('inf')
         lobe_error = lobes_error_for(profile, lobe_count)
         rsn = radial_span_norm_for(R, r, d)
+        rho_min_over_max = rho_min_over_max_for(R, r, d)
+        sharpness_p95 = sharpness_p95_abs_turn_rad_for(R, r, d)
 
         Rs.append(R)
         rs.append(r)
@@ -327,6 +477,28 @@ def run_for_complexity(
         offset_factors.append(offset_factor)
         ringness_values.append(ringness)
         radial_span_norms.append(rsn)
+        rho_min_over_max_values.append(rho_min_over_max)
+        sharpness_p95_values.append(sharpness_p95)
+
+        if (
+            len(center_reach_samples) < center_reach_cap
+            and math.isfinite(rho_min_over_max)
+            and rho_min_over_max <= 0.12
+        ):
+            center_reach_samples.append(
+                {
+                    'fixed_radius': R,
+                    'rolling_radius': r,
+                    'pen_distance': d,
+                    'lobes': lobe_count,
+                    'laps': laps,
+                    'ratio_R_over_r': ratio,
+                    'diff_abs_R_minus_r': diff,
+                    'offset_factor_d_over_r': offset_factor,
+                    'rho_min_over_max': rho_min_over_max,
+                    'sharpness_p95_abs_turn_rad': sharpness_p95,
+                }
+            )
 
         if not (profile.ratio_min <= ratio <= profile.ratio_max):
             ratio_outside += 1
@@ -383,6 +555,7 @@ def run_for_complexity(
         'diff_band_used_pct': 100.0 * diff_band_used_count / samples,
         'pen_near_one_samples': pen_near_one_samples,
         'pen_bias_samples': pen_bias_samples,
+        'center_reach_samples': center_reach_samples,
     }
 
     return {
@@ -417,6 +590,20 @@ def run_for_complexity(
             'offset_factor_d_over_r': summarize_floats(offset_factors),
             'ringness_abs_d_minus_r_over_sum': summarize_floats(ringness_values),
             'radial_span_norm': summarize_floats(radial_span_norms),
+            'rho_min_over_max': summarize_floats(rho_min_over_max_values),
+            'sharpness_p95_abs_turn_rad': summarize_floats(sharpness_p95_values),
+            'corr_rho_min_over_max_vs_offset_factor': pearson_corr_for(
+                rho_min_over_max_values,
+                offset_factors,
+            ),
+            'corr_sharpness_vs_rho_min_over_max': pearson_corr_for(
+                sharpness_p95_values,
+                rho_min_over_max_values,
+            ),
+            'corr_sharpness_vs_offset_factor': pearson_corr_for(
+                sharpness_p95_values,
+                offset_factors,
+            ),
         },
     }
 
@@ -627,6 +814,46 @@ def main(argv: Iterable[str] | None = None) -> int:
         print('stats:')
         for k, v in result['stats'].items():
             print(f'  {k}: {v}')
+
+    if results:
+        print('=' * 80)
+        print('corr_rho_min_over_max_vs_offset_factor_ranked (abs desc):')
+        ranked = []
+        for result in results:
+            stats = result.get('stats', {})
+            corr = stats.get('corr_rho_min_over_max_vs_offset_factor')
+            if not isinstance(corr, (int, float)) or not math.isfinite(corr):
+                corr = float('nan')
+            ranked.append((result.get('complexity'), corr))
+        ranked.sort(key=lambda item: abs(item[1]) if math.isfinite(item[1]) else -1.0, reverse=True)
+        for complexity, corr in ranked:
+            print(f'  {complexity}: {corr}')
+
+        print('=' * 80)
+        print('corr_sharpness_vs_rho_min_over_max_ranked (abs desc):')
+        ranked = []
+        for result in results:
+            stats = result.get('stats', {})
+            corr = stats.get('corr_sharpness_vs_rho_min_over_max')
+            if not isinstance(corr, (int, float)) or not math.isfinite(corr):
+                corr = float('nan')
+            ranked.append((result.get('complexity'), corr))
+        ranked.sort(key=lambda item: abs(item[1]) if math.isfinite(item[1]) else -1.0, reverse=True)
+        for complexity, corr in ranked:
+            print(f'  {complexity}: {corr}')
+
+        print('=' * 80)
+        print('corr_sharpness_vs_offset_factor_ranked (abs desc):')
+        ranked = []
+        for result in results:
+            stats = result.get('stats', {})
+            corr = stats.get('corr_sharpness_vs_offset_factor')
+            if not isinstance(corr, (int, float)) or not math.isfinite(corr):
+                corr = float('nan')
+            ranked.append((result.get('complexity'), corr))
+        ranked.sort(key=lambda item: abs(item[1]) if math.isfinite(item[1]) else -1.0, reverse=True)
+        for complexity, corr in ranked:
+            print(f'  {complexity}: {corr}')
 
     return 0
 
