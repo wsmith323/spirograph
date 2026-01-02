@@ -3,7 +3,7 @@ import random
 import math
 
 from spirograph.generation.requests import CircularSpiroRequest
-from .types import RandomComplexity, RandomConstraintMode, RandomEvolutionMode
+from .types import RandomConstraintMode, RandomEvolutionMode
 
 
 def evolve_value(
@@ -35,18 +35,10 @@ def random_fixed_circle_radius(prev: CircularSpiroRequest | None, evolution: Ran
 def random_rolling_circle_radius(
     fixed_radius: int,
     prev: CircularSpiroRequest | None,
-    complexity: RandomComplexity,
     constraint: RandomConstraintMode,
     evolution: RandomEvolutionMode,
 ) -> int:
     prev_r = int(prev.rolling_radius) if prev else None
-
-    if complexity is RandomComplexity.SIMPLE:
-        ratio_min, ratio_max = 2.5, 4.5
-    elif complexity is RandomComplexity.DENSE:
-        ratio_min, ratio_max = 5.0, 14.0
-    else:
-        ratio_min, ratio_max = 3.5, 9.0
 
     if constraint is RandomConstraintMode.PHYSICAL:
         max_r = fixed_radius - 1
@@ -86,18 +78,12 @@ def random_rolling_circle_radius(
 def random_pen_offset(
     rolling_radius: int,
     prev: CircularSpiroRequest | None,
-    complexity: RandomComplexity,
     constraint: RandomConstraintMode,
     evolution: RandomEvolutionMode,
 ) -> int:
     prev_d = int(prev.pen_distance) if prev else None
 
-    if complexity is RandomComplexity.SIMPLE:
-        max_factor = 1.2
-    elif complexity is RandomComplexity.DENSE:
-        max_factor = 2.2
-    else:
-        max_factor = 1.6
+    max_factor = 1.6
 
     if constraint is RandomConstraintMode.WILD:
         max_factor *= 1.5

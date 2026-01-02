@@ -4,7 +4,7 @@ import math
 
 from spirograph.generation import SpiroType
 from spirograph.rendering import Color, ColorMode
-from .types import RandomComplexity, RandomConstraintMode, RandomEvolutionMode
+from .types import RandomConstraintMode, RandomEvolutionMode
 
 
 def make_prompt_label(identifier: str) -> str:
@@ -14,11 +14,6 @@ def make_prompt_label(identifier: str) -> str:
 def prompt_enum(label: str, enum_cls, default):
     values = list(enum_cls)
     descriptions_by_enum = {
-        RandomComplexity: {
-            RandomComplexity.SIMPLE: 'Cleaner, fewer lobes; tends to look more symmetric.',
-            RandomComplexity.MEDIUM: 'Balanced defaults; usually pretty.',
-            RandomComplexity.DENSE: 'More lobes and detail; tends to close slower and look busier.',
-        },
         RandomConstraintMode: {
             RandomConstraintMode.PHYSICAL: 'Stay close to real spirograph constraints.',
             RandomConstraintMode.EXTENDED: 'Allow r > R and d > r; more loopiness.',

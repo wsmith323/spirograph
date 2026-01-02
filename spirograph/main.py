@@ -95,7 +95,6 @@ Current session settings:
 Geometry:     
     Curve Type: {session.curve_type.value.title()}
 Random:
-    Complexity: {session.random_complexity.value.title()}
     Constraint: {session.random_constraint_mode.value.title()}
     Evolution: {session.random_evolution_mode.value.title()}
     Locks:
@@ -143,7 +142,6 @@ def generate_random_request(session: CliSessionState) -> CircularSpiroRequest:
         rolling_radius = random_rolling_circle_radius(
             fixed_radius,
             session.last_request,
-            session.random_complexity,
             session.random_constraint_mode,
             session.random_evolution_mode,
         )
@@ -154,7 +152,6 @@ def generate_random_request(session: CliSessionState) -> CircularSpiroRequest:
         pen_distance = random_pen_offset(
             rolling_radius,
             session.last_request,
-            session.random_complexity,
             session.random_constraint_mode,
             session.random_evolution_mode,
         )
@@ -194,7 +191,6 @@ def edit_geometry(session: CliSessionState) -> CircularSpiroRequest:
         lambda: random_rolling_circle_radius(
             fixed_radius,
             previous_request,
-            session.random_complexity,
             session.random_constraint_mode,
             session.random_evolution_mode,
         ),
@@ -207,7 +203,6 @@ def edit_geometry(session: CliSessionState) -> CircularSpiroRequest:
         lambda: random_pen_offset(
             rolling_radius,
             previous_request,
-            session.random_complexity,
             session.random_constraint_mode,
             session.random_evolution_mode,
         ),
@@ -224,11 +219,8 @@ def edit_geometry(session: CliSessionState) -> CircularSpiroRequest:
 def edit_session_settings(session: CliSessionState) -> None:
     session.curve_type = prompt_enum('Curve Type', SpiroType, session.curve_type)
 
-    session.random_complexity = prompt_enum(
-        'Random Complexity', type(session.random_complexity), session.random_complexity
-    )
     session.random_constraint_mode = prompt_enum(
-        'Ramdom Constraint Mode',
+        'Random Constraint Mode',
         type(session.random_constraint_mode),
         session.random_constraint_mode,
     )

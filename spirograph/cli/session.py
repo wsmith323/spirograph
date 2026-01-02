@@ -2,12 +2,11 @@ from dataclasses import dataclass
 
 from spirograph.generation import CircularSpiroRequest, SpiroType
 from spirograph.rendering import ColorMode, Color
-from .types import RandomComplexity, RandomConstraintMode, RandomEvolutionMode
+from .types import RandomConstraintMode, RandomEvolutionMode
 
 
 @dataclass(slots=True)
 class CliSessionState:
-    random_complexity: RandomComplexity = RandomComplexity.SIMPLE
     random_constraint_mode: RandomConstraintMode = RandomConstraintMode.EXTENDED
     random_evolution_mode: RandomEvolutionMode = RandomEvolutionMode.RANDOM
     curve_type: SpiroType = SpiroType.HYPOTROCHOID

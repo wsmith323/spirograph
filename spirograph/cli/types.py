@@ -1,12 +1,6 @@
 from enum import Enum
 
 
-class RandomComplexity(Enum):
-    SIMPLE = 'simple'
-    MEDIUM = 'medium'
-    DENSE = 'dense'
-
-
 class RandomConstraintMode(Enum):
     PHYSICAL = 'physical'
     EXTENDED = 'extended'
