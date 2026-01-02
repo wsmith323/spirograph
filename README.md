@@ -62,8 +62,9 @@ python3 -m spirograph.main
     - Oval (like the "football" in the classic kit)
     - Lobed (like the "clover" in the classic kit)
   - Support for "Meta-Curves":
-    - Moving track position during curve rendering
-    - Track as a roller inside/outside another track
+d    - Changing track position during curve generation:
+      - Track position follows a separate curve
+      - Track & roller as a roller inside/outside another track
 - **Extended Drawing Composition:**
   - Non-centered curves
   - Multiple curves in a single drawing
