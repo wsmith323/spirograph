@@ -6,7 +6,7 @@ from typing import Generic, TypeVar
 from .requests import EngineRequest
 from .types import GeneratedCurve
 
-RequestT = TypeVar("RequestT", bound=EngineRequest)
+RequestT = TypeVar('RequestT', bound=EngineRequest)
 
 
 class CurveGenerator(ABC, Generic[RequestT]):
