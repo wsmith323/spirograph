@@ -27,7 +27,11 @@ The agent acts as a **v1 maintenance and extension executor**.
 
 ## Codebase-Specific Guidance
 
-- **Type Safety**: Use Python 3.11+ type hints for all new code. Never use `from __future__ import annotations`.
+- **Type Safety**: Use Python 3.11+ annotations for all new code. Use `from 
+  __future__ import annotations` only when it replaces a mess of forward-ref 
+  annotation strings, but confirm before doing so. In general, avoid using 
+  forward annotation references in favor of re-ordering module contents or 
+  separating into multiple files. 
 - **Statelessness**: Generators must never store state. CLI Session State is the only place for "evolution" or "memory" between runs.
 - **Decoupling**: The Renderer must never know about geometry; the Generator must never know about colors.
 - **Color Primitive**: Use the v1 `Color` value object (with `r, g, b, a` attributes) for all path representations.
