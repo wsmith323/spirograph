@@ -28,14 +28,13 @@ further:
   lines meet. This engine uses GCD-based logic to calculate exactly how many
   rotations are needed to perfectly close the loop every time.
 - **Full Color Palette:** Choose from millions of color combinations.
-- **Random Color Choice:** Choose patterns for random color choice,
-  including N laps of the track or N spins of the wheel.
+- **Random Color Choice:** Choose patterns for random colors, including random
+  choice per N laps of the track or N spins of the wheel.
 - **Impossible Geometries:**
-  - Rolling wheel larger than the circular track
-  - Pen position outside the roller
-- **Evolutionary Discovery:** Use "Drift" and "Jump" modes to let the engine
-  explore variations of your favorite curves, discovering new geometric patterns
-  automatically.
+  - Rolling wheel larger than the circular track.
+  - Pen position outside the roller.
+- **Discovery:** Use Random, Drift, and Jump modes to let the engine
+  explore variations of geometric patterns automatically.
 
 ## Getting Started
 
@@ -50,7 +49,7 @@ python3 -m spirograph.main
 
 ## Future Roadmap
 
-- **CLI:** More polished, intuitive and streamlined experience
+- **CLI:** More polished, intuitive, and streamlined experience
 - **Persistence:**
   - Save/Restore State Between CLI Sessions
   - Save and Replay Drawings
@@ -62,7 +61,7 @@ python3 -m spirograph.main
     - Oval (like the "football" in the classic kit)
     - Lobed (like the "clover" in the classic kit)
   - Support for "Meta-Curves":
-d    - Changing track position during curve generation:
+    - Changing track position during curve generation:
       - Track position follows a separate curve
       - Track & roller as a roller inside/outside another track
 - **Extended Drawing Composition:**
