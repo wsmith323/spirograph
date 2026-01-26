@@ -106,6 +106,27 @@ def prompt_non_negative_float(identifier: str, default_value: float) -> float:
         return value
 
 
+def prompt_positive_float(identifier: str, default_value: float) -> float:
+    label = make_prompt_label(identifier)
+
+    while True:
+        raw_value = input(f'{label} [{default_value}]: ').strip()
+        if raw_value == '':
+            return default_value
+
+        try:
+            value = float(raw_value)
+        except ValueError:
+            print('Please enter a valid number.')
+            continue
+
+        if value <= 0:
+            print('Please enter a positive number.')
+            continue
+
+        return value
+
+
 def prompt_positive_int_or_random(
     identifier: str,
     default_value: int | None,

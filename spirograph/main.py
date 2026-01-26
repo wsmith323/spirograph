@@ -17,6 +17,7 @@ from .cli.prompts import (
     prompt_enum,
     prompt_lock_value,
     prompt_non_negative_float,
+    prompt_positive_float,
     prompt_positive_int,
     prompt_positive_int_or_random,
 )
@@ -54,6 +55,21 @@ Random:
     [Enter] - Generate next random curve (same settings)
 Program:
     q - Quit
+"""
+
+SESSION_MENU_TEXT = """
+Session settings:
+    1 - Curve type
+    2 - Random constraint mode
+    3 - Random evolution mode
+    4 - Color mode
+    5 - Color (only when mode is fixed)
+    6 - Laps per color (only when mode is random_every_n_laps)
+    7 - Spins per color (only when mode is random_every_n_spins)
+    8 - Line width
+    9 - Drawing speed
+    p - Print session settings
+    [Enter] / q - Done
 """
 
 
@@ -217,30 +233,75 @@ def edit_geometry(session: CliSessionState) -> CircularSpiroRequest:
 
 
 def edit_session_settings(session: CliSessionState) -> None:
-    session.curve_type = prompt_enum('Curve Type', SpiroType, session.curve_type)
+    while True:
+        print_session_status(session)
+        print(SESSION_MENU_TEXT)
+        command = input('session> ').strip().lower()
 
-    session.random_constraint_mode = prompt_enum(
-        'Random Constraint Mode',
-        type(session.random_constraint_mode),
-        session.random_constraint_mode,
-    )
-    session.random_evolution_mode = prompt_enum(
-        'Random Evolution Mode',
-        type(session.random_evolution_mode),
-        session.random_evolution_mode,
-    )
+        match command:
+            case '' | 'q':
+                break
 
-    session.color_mode = prompt_enum('Color Mode', ColorMode, session.color_mode)
-    if session.color_mode is ColorMode.FIXED:
-        session.color = prompt_color_value(session.color)
-    elif session.color_mode is ColorMode.RANDOM_EVERY_N_LAPS:
-        session.laps_per_color = prompt_positive_int('laps_per_color', default_value=session.laps_per_color)
-    elif session.color_mode is ColorMode.RANDOM_EVERY_N_SPINS:
-        session.spins_per_color = prompt_positive_int('spins_per_color', default_value=session.spins_per_color)
+            case 'p':
+                print_session_status(session)
+                continue
 
-    session.line_width = prompt_positive_int('line_width', default_value=int(session.line_width))
-    session.drawing_speed = prompt_drawing_speed(session.drawing_speed)
-    print_session_status(session)
+            case '1':
+                session.curve_type = prompt_enum('Curve Type', SpiroType, session.curve_type)
+                continue
+
+            case '2':
+                session.random_constraint_mode = prompt_enum(
+                    'Random Constraint Mode',
+                    type(session.random_constraint_mode),
+                    session.random_constraint_mode,
+                )
+                continue
+
+            case '3':
+                session.random_evolution_mode = prompt_enum(
+                    'Random Evolution Mode',
+                    type(session.random_evolution_mode),
+                    session.random_evolution_mode,
+                )
+                continue
+
+            case '4':
+                session.color_mode = prompt_enum('Color Mode', ColorMode, session.color_mode)
+                continue
+
+            case '5':
+                if session.color_mode is not ColorMode.FIXED:
+                    print(f"Not applicable: Color mode is '{session.color_mode.value}'.")
+                    continue
+                session.color = prompt_color_value(session.color)
+                continue
+
+            case '6':
+                if session.color_mode is not ColorMode.RANDOM_EVERY_N_LAPS:
+                    print(f"Not applicable: Color mode is '{session.color_mode.value}'.")
+                    continue
+                session.laps_per_color = prompt_positive_int('laps_per_color', default_value=session.laps_per_color)
+                continue
+
+            case '7':
+                if session.color_mode is not ColorMode.RANDOM_EVERY_N_SPINS:
+                    print(f"Not applicable: Color mode is '{session.color_mode.value}'.")
+                    continue
+                session.spins_per_color = prompt_positive_int('spins_per_color', default_value=session.spins_per_color)
+                continue
+
+            case '8':
+                session.line_width = prompt_positive_float('line_width', default_value=session.line_width)
+                continue
+
+            case '9':
+                session.drawing_speed = prompt_drawing_speed(session.drawing_speed)
+                continue
+
+            case _:
+                print('Unknown session command.')
+                continue
 
 
 def edit_locks(session: CliSessionState) -> None:
