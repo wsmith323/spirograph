@@ -38,8 +38,17 @@ further:
 
 ## Getting Started
 
-To run the current Command Line Interface (CLI), execute this from a
-terminal in the project root:
+Install:
+```
+pip install .
+```
+
+Run the CLI:
+```
+spirograph
+```
+
+Alternatively, you can run the module directly:
 ```
 python3 -m spirograph.main
 ```

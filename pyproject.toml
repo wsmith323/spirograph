@@ -1,6 +1,6 @@
 [project]
 name = "spirograph"
-version = "0.2"
+version = "0.3"
 description = "Digital Spirograph"
 authors = [
     {name = "Warren Smith",email = "warren@wandrsmith.net"}
@@ -10,6 +10,9 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
 ]
+
+[project.scripts]
+spirograph = "spirograph.main:main"
 
 
 [build-system]
