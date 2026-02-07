@@ -11,11 +11,6 @@ requires-python = ">=3.12"
 dependencies = [
 ]
 
-[project.optional-dependencies]
-test = [
-    "pytest>=8,<10",
-]
-
 [project.scripts]
 spirograph = "spirograph.main:main"
 
@@ -23,6 +18,10 @@ spirograph = "spirograph.main:main"
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.test.dependencies]
+pytest = ">=8,<10"
+
 [tool.ruff]
 exclude = [
     ".bzr",
