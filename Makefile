@@ -1,8 +1,11 @@
-test:
-	python3 -m pytest -q
+ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+PYTHON := $(if $(VIRTUAL_ENV),$(VIRTUAL_ENV)/bin/python,$(HOME)/work/virtualenvs/spirograph/bin/python)
 
-test-generation:
-	python3 -m pytest tests/spirograph/generation/test_circular_generator.py -q
+test:
+	$(PYTHON) -m pytest -q
 
 test-verbose:
-	python3 -m pytest -v
+	$(PYTHON) -m pytest -v
+
+test-generation:
+	$(PYTHON) -m pytest $(ROOT)/tests/spirograph/generation/test_circular_generator.py -q

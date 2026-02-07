@@ -52,6 +52,9 @@ This file is the operational guide for AI/code agents working in this repository
 
 ## 7. Validation Checklist for Agents
 - Run available static checks/tests when present.
+- For Python/test commands, use the environment-aware Makefile targets or run
+  via `$(VIRTUAL_ENV)/bin/python` when `VIRTUAL_ENV` is set; otherwise use
+  `$HOME/work/virtualenvs/spirograph/bin/python`.
 - Minimum manual smoke checks:
   - Launch CLI.
   - Run one random curve.
@@ -71,4 +74,3 @@ This file is the operational guide for AI/code agents working in this repository
 - State whether behavior invariants were touched.
 - List risks/regression potential.
 - List what was validated (and what was not).
-
