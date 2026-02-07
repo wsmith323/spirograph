@@ -11,6 +11,11 @@ requires-python = ">=3.12"
 dependencies = [
 ]
 
+[project.optional-dependencies]
+test = [
+    "pytest>=8,<10",
+]
+
 [project.scripts]
 spirograph = "spirograph.main:main"
 
