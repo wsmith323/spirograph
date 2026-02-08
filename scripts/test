@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+COVERAGE=0
+COV_TARGET="spirograph"
+WRAPPER_VERBOSE=0
+USER_VERBOSE=0
+PYTEST_ARGS=()
+
+usage() {
+  cat <<'EOF'
+Usage: ./scripts/test [--coverage] [--cov-target TARGET] [-v|--verbose] [pytest args...]
+
+Examples:
+  VIRTUAL_ENV=/Users/warren/work/virtualenvs/spirograph ./scripts/test
+  VIRTUAL_ENV=/Users/warren/work/virtualenvs/spirograph ./scripts/test tests/spirograph/generation
+  VIRTUAL_ENV=/Users/warren/work/virtualenvs/spirograph ./scripts/test -v
+  VIRTUAL_ENV=/Users/warren/work/virtualenvs/spirograph ./scripts/test --coverage
+  VIRTUAL_ENV=/Users/warren/work/virtualenvs/spirograph ./scripts/test --coverage --cov-target spirograph.generation.circular_generator tests/spirograph/generation/test_circular_generator.py -q
+EOF
+}
+
+while (($#)); do
+  case "$1" in
+    --coverage)
+      COVERAGE=1
+      shift
+      ;;
+    --cov-target)
+      if (($# < 2)); then
+        echo "error: --cov-target requires a value" >&2
+        usage
+        exit 2
+      fi
+      COV_TARGET="$2"
+      shift 2
+      ;;
+    -v|--verbose)
+      WRAPPER_VERBOSE=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      if [[ "$1" =~ ^-v+$ ]]; then
+        USER_VERBOSE=1
+      fi
+      PYTEST_ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [[ -z "${VIRTUAL_ENV:-}" ]]; then
+  echo "error: VIRTUAL_ENV is not set. Run as: VIRTUAL_ENV=/path/to/venv ./scripts/test ..." >&2
+  exit 1
+fi
+
+PYTHON="${VIRTUAL_ENV}/bin/python"
+if [[ ! -x "${PYTHON}" ]]; then
+  echo "error: python interpreter not found or not executable: ${PYTHON}" >&2
+  exit 1
+fi
+
+CMD=("${PYTHON}" -m pytest)
+
+if (( COVERAGE )); then
+  CMD+=("--cov=${COV_TARGET}" "--cov-report=term-missing")
+fi
+
+if (( WRAPPER_VERBOSE )); then
+  CMD+=(-v)
+elif (( USER_VERBOSE == 0 )); then
+  CMD+=(-q)
+fi
+
+CMD+=("${PYTEST_ARGS[@]}")
+
+exec "${CMD[@]}"
