@@ -2,9 +2,10 @@
 
 ## 1. Purpose
 This file is the operational guide for AI/code agents working in this repository. Prioritize behavioral correctness and architectural boundaries over opportunistic refactors or cosmetic rewrites.
+All file references in this guide are repo-relative unless explicitly noted.
 
 ## 2. Repo Snapshot
-- Python version: `>=3.12` (see `/Users/warren/work/projects/spirograph/pyproject.toml`).
+- Python version: `>=3.12` (see `pyproject.toml`).
 - Entrypoints:
   - `spirograph`
   - `python3 -m spirograph.main`
@@ -34,16 +35,16 @@ This file is the operational guide for AI/code agents working in this repository
   - Random generation flow (including locks/evolution modes).
 
 ## 5. Key Files
-- `/Users/warren/work/projects/spirograph/spirograph/main.py`
-- `/Users/warren/work/projects/spirograph/spirograph/orchestration.py`
-- `/Users/warren/work/projects/spirograph/spirograph/generation/circular_generator.py`
-- `/Users/warren/work/projects/spirograph/spirograph/rendering/builder.py`
-- `/Users/warren/work/projects/spirograph/spirograph/rendering/turtle_renderer.py`
-- `/Users/warren/work/projects/spirograph/docs/architecture/architecture_v1.md`
+- `spirograph/main.py`
+- `spirograph/orchestration.py`
+- `spirograph/generation/circular_generator.py`
+- `spirograph/rendering/builder.py`
+- `spirograph/rendering/turtle_renderer.py`
+- `docs/architecture/architecture_v1.md`
 
 ## 6. Coding Rules
 - Keep type hints modern and explicit.
-- Preserve repository style and Ruff configuration in `/Users/warren/work/projects/spirograph/pyproject.toml`.
+- Preserve repository style and Ruff configuration in `pyproject.toml`.
 - Prefer small, focused edits; avoid broad refactors without explicit approval.
 - If changing behavior-affecting math, document:
   - Why the change is needed.
