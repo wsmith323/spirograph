@@ -67,7 +67,7 @@ fi
 CMD=("${PYTHON}" -m pytest)
 
 if (( COVERAGE )); then
-  CMD+=("--cov=${COV_TARGET}" "--cov-report=term-missing")
+  CMD+=("--cov=${COV_TARGET}" "--cov-branch" "--cov-report=term-missing")
 fi
 
 if (( WRAPPER_VERBOSE )); then
