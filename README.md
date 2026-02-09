@@ -53,18 +53,6 @@ Alternatively, you can run the module directly:
 python3 -m spirograph.main
 ```
 
-## Testing
-
-Use the repo test wrapper and set `VIRTUAL_ENV` inline:
-
-```bash
-VIRTUAL_ENV=/Users/warren/work/virtualenvs/spirograph ./scripts/test
-VIRTUAL_ENV=/Users/warren/work/virtualenvs/spirograph ./scripts/test tests/spirograph/generation
-VIRTUAL_ENV=/Users/warren/work/virtualenvs/spirograph ./scripts/test -v
-VIRTUAL_ENV=/Users/warren/work/virtualenvs/spirograph ./scripts/test --coverage
-VIRTUAL_ENV=/Users/warren/work/virtualenvs/spirograph ./scripts/test --coverage --cov-target spirograph.generation.circular_generator tests/spirograph/generation/test_circular_generator.py -q
-```
-
 > **Note on the CLI:** The current version is functional but primitive, and
 > "just enough to make it work." Development up to this point has focused
 > primarily on exploring possibilities and on the underlying architecture.

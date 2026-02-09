@@ -12,11 +12,11 @@ usage() {
 Usage: ./scripts/test [--coverage] [--cov-target TARGET] [-v|--verbose] [pytest args...]
 
 Examples:
-  VIRTUAL_ENV=/Users/warren/work/virtualenvs/spirograph ./scripts/test
-  VIRTUAL_ENV=/Users/warren/work/virtualenvs/spirograph ./scripts/test tests/spirograph/generation
-  VIRTUAL_ENV=/Users/warren/work/virtualenvs/spirograph ./scripts/test -v
-  VIRTUAL_ENV=/Users/warren/work/virtualenvs/spirograph ./scripts/test --coverage
-  VIRTUAL_ENV=/Users/warren/work/virtualenvs/spirograph ./scripts/test --coverage --cov-target spirograph.generation.circular_generator tests/spirograph/generation/test_circular_generator.py -q
+  ./scripts/test
+  ./scripts/test tests/spirograph/generation
+  ./scripts/test -v
+  ./scripts/test --coverage
+  ./scripts/test --coverage --cov-target spirograph.generation.circular_generator tests/spirograph/generation/test_circular_generator.py -q
 EOF
 }
 
