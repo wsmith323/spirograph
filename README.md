@@ -53,9 +53,9 @@ Alternatively, you can run the module directly:
 python3 -m spirograph.main
 ```
 
-> **Note on the console UI:** The current version is functional but primitive, and
-> "just enough to make it work." Development up to this point has focused
-> primarily on exploring possibilities and on the underlying architecture.
+> **Note on the console UI:** The current version is functional but primitive.
+> Development has focused primarily on exploring possibilities and on the
+> underlying architecture. Improvements to the console UI are on the roadmap.
 
 ## Future Roadmap
 
