@@ -41,7 +41,8 @@ further:
 Installation:
 1. Clone the repository to a new directory
 2. Create a virtual environment for it with Python 3.12 or higher
-3. Run the following from the repository root:
+3. Activate the virtual environment
+4. Run the following from the repository root:
 ```
 pip install .
 ```
