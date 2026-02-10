@@ -3,13 +3,13 @@ import time
 import math
 
 from spirograph.generation import SpiroType
-from .cli.guidance import (
+from .console_ui.guidance import (
     describe_curve,
     guide_before_fixed_radius,
     guide_before_pen_offset,
     guide_before_rolling_radius,
 )
-from .cli.prompts import (
+from .console_ui.prompts import (
     compute_steps,
     make_prompt_label,
     parse_color,
@@ -21,12 +21,12 @@ from .cli.prompts import (
     prompt_positive_int,
     prompt_positive_int_or_random,
 )
-from .cli.random import (
+from .console_ui.random import (
     random_fixed_circle_radius,
     random_pen_offset,
     random_rolling_circle_radius,
 )
-from .cli.session import CliSessionState
+from .console_ui.session import ConsoleUiSessionState
 from .generation.circular_generator import CircularSpiroGenerator
 from .generation.registry import GeneratorRegistry
 from .generation.requests import CircularSpiroRequest
@@ -86,7 +86,7 @@ def prompt_color_value(current_color: Color) -> Color:
     return parse_color(raw_value, current_color)
 
 
-def print_selected_parameters(request: CircularSpiroRequest, session: CliSessionState) -> None:
+def print_selected_parameters(request: CircularSpiroRequest, session: ConsoleUiSessionState) -> None:
     print(
         f"""
 Selected parameters:
@@ -101,7 +101,7 @@ Line Width: {session.line_width}
     )
 
 
-def print_session_status(session: CliSessionState) -> None:
+def print_session_status(session: ConsoleUiSessionState) -> None:
     r_lock = 'r' if session.locked_fixed_radius is None else session.locked_fixed_radius
     rr_lock = 'r' if session.locked_rolling_radius is None else session.locked_rolling_radius
     d_lock = 'r' if session.locked_pen_distance is None else session.locked_pen_distance
@@ -128,7 +128,7 @@ Drawing:
 """)
 
 
-def print_menu(session: CliSessionState) -> None:
+def print_menu(session: ConsoleUiSessionState) -> None:
     print(MENU_TEXT)
 
 
@@ -148,7 +148,7 @@ def build_request(
     )
 
 
-def generate_random_request(session: CliSessionState) -> CircularSpiroRequest:
+def generate_random_request(session: ConsoleUiSessionState) -> CircularSpiroRequest:
     if session.locked_fixed_radius is None:
         fixed_radius = random_fixed_circle_radius(session.last_request, session.random_evolution_mode)
     else:
@@ -190,7 +190,7 @@ def generate_random_request(session: CliSessionState) -> CircularSpiroRequest:
     )
 
 
-def edit_geometry(session: CliSessionState) -> CircularSpiroRequest:
+def edit_geometry(session: ConsoleUiSessionState) -> CircularSpiroRequest:
     previous_request = session.last_request
 
     guide_before_fixed_radius(previous_request)
@@ -232,7 +232,7 @@ def edit_geometry(session: CliSessionState) -> CircularSpiroRequest:
     )
 
 
-def edit_session_settings(session: CliSessionState) -> None:
+def edit_session_settings(session: ConsoleUiSessionState) -> None:
     while True:
         print_session_status(session)
         print(SESSION_MENU_TEXT)
@@ -304,7 +304,7 @@ def edit_session_settings(session: CliSessionState) -> None:
                 continue
 
 
-def edit_locks(session: CliSessionState) -> None:
+def edit_locks(session: ConsoleUiSessionState) -> None:
     print('\nLocks for random runs:')
     print("  Set a number to lock a value during random runs. Enter 'r' to unlock.")
     print('  Press Enter to keep the current lock setting.\n')
@@ -314,7 +314,7 @@ def edit_locks(session: CliSessionState) -> None:
     session.locked_pen_distance = prompt_lock_value('pen_offset', session.locked_pen_distance)
 
 
-def resolve_interval(session: CliSessionState) -> int:
+def resolve_interval(session: ConsoleUiSessionState) -> int:
     if session.color_mode is ColorMode.RANDOM_EVERY_N_LAPS:
         return max(1, session.laps_per_color)
     if session.color_mode is ColorMode.RANDOM_EVERY_N_SPINS:
@@ -325,7 +325,7 @@ def resolve_interval(session: CliSessionState) -> int:
 def render_request(
     orchestrator: CurveOrchestrator,
     request: CircularSpiroRequest,
-    session: CliSessionState,
+    session: ConsoleUiSessionState,
 ) -> None:
     interval = resolve_interval(session)
     settings = RenderSettings(
@@ -346,7 +346,7 @@ def main() -> None:
     renderer = TurtleGraphicsRenderer()
     orchestrator = CurveOrchestrator(registry, builder, renderer)
 
-    session = CliSessionState()
+    session = ConsoleUiSessionState()
 
     while True:
         print_menu(session)

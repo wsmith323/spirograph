@@ -27,7 +27,7 @@ Its goals are:
 
 ### Scope of v1 (MVP)
 - Stateless execution
-- CLI-driven interaction
+- Console-UI-driven interaction
 - Turtle-based rendering
 - Circular spirograph geometry only (Hypotrochoid and Epitrochoid)
 - Randomized and manually entered inputs (as in v0)
@@ -173,9 +173,9 @@ Coordinates the pipeline. It selects the generator, generates the curve, builds 
 
 ---
 
-## 6. CLI Layer
+## 6. Console UI Layer
 
-The CLI is a composition and configuration layer, not a logic layer.
+The console UI is a composition and configuration layer, not a logic layer.
 
 Responsibilities:
 - Gather user input.
@@ -190,7 +190,7 @@ Responsibilities:
 
 Randomness is intentionally split across layers:
 
-- Geometry randomness (resolved into concrete Request values) → CLI Layer.
+- Geometry randomness (resolved into concrete Request values) → Console UI Layer.
 - Presentation randomness (resolved into concrete Path colors) → RenderPlanBuilder.
 
 Design principles:

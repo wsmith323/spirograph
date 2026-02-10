@@ -6,7 +6,7 @@ from .types import RandomConstraintMode, RandomEvolutionMode
 
 
 @dataclass(slots=True)
-class CliSessionState:
+class ConsoleUiSessionState:
     random_constraint_mode: RandomConstraintMode = RandomConstraintMode.EXTENDED
     random_evolution_mode: RandomEvolutionMode = RandomEvolutionMode.RANDOM
     curve_type: SpiroType = SpiroType.HYPOTROCHOID

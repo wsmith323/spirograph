@@ -14,7 +14,7 @@ All file references in this guide are repo-relative unless explicitly noted.
 - Current renderer: turtle (`TurtleGraphicsRenderer`).
 
 ## 3. Architecture Boundaries (Do/Don't)
-- `spirograph/cli`: user input, session state, and geometry randomness setup.
+- `spirograph/console_ui`: user input, session state, and geometry randomness setup.
 - `spirograph/generation`: pure geometry generation, span derivation, and metadata.
 - `spirograph/rendering`: render plan construction and drawing.
 - `spirograph/orchestration.py`: coordinate pipeline stages only.
@@ -25,12 +25,12 @@ All file references in this guide are repo-relative unless explicitly noted.
 ## 4. Behavior Invariants (Must Preserve)
 - Preserve closure/laps behavior derived from GCD-based period semantics.
 - Preserve randomness separation:
-  - Geometry randomness in CLI random helpers (`spirograph/cli/random.py`).
+  - Geometry randomness in console UI random helpers (`spirograph/console_ui/random.py`).
   - Color randomness in render-plan construction (`spirograph/rendering/builder.py`).
   - No hidden randomness in generators or renderers.
 - Preserve existing color mode semantics:
   - `fixed`, `random_per_run`, `random_per_lap`, `random_every_n_laps`, `random_per_spin`, `random_every_n_spins`.
-- Keep both CLI workflows functional:
+- Keep both console UI workflows functional:
   - Manual parameter flow.
   - Random generation flow (including locks/evolution modes).
 
@@ -58,7 +58,7 @@ All file references in this guide are repo-relative unless explicitly noted.
 - `VIRTUAL_ENV` is required; do not rely on shell activation state for
   non-interactive runs.
 - Minimum manual smoke checks:
-  - Launch CLI.
+  - Launch console UI.
   - Run one random curve.
   - Run one manual curve.
   - Run one non-fixed color mode.

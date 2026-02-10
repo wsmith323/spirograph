@@ -43,7 +43,7 @@ Install:
 pip install .
 ```
 
-Run the CLI:
+Run the console UI:
 ```
 spirograph
 ```
@@ -53,15 +53,15 @@ Alternatively, you can run the module directly:
 python3 -m spirograph.main
 ```
 
-> **Note on the CLI:** The current version is functional but primitive, and
+> **Note on the console UI:** The current version is functional but primitive, and
 > "just enough to make it work." Development up to this point has focused
 > primarily on exploring possibilities and on the underlying architecture.
 
 ## Future Roadmap
 
-- **CLI:** More polished, intuitive, and streamlined experience
+- **Console UI:** More polished, intuitive, and streamlined experience
 - **Persistence:**
-  - Save/Restore State Between CLI Sessions
+  - Save/Restore State Between console UI sessions
   - Save and Replay Drawings
 - **Extended Geometries:**
   - Support for non-circular tracks:
@@ -92,7 +92,7 @@ remain independent.
 The engine uses a pluggable sequence: **Request** -> **Generator** ->
 **Builder** -> **Renderer**.
 
-- **Request:** Captures user intent and parameters (via CLI or other
+- **Request:** Captures user intent and parameters (via the console UI or other
   interfaces).
 - **Generator:** Handles pure mathematical calculation of geometric point data
   based on the Request.
