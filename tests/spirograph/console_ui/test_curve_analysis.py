@@ -173,7 +173,7 @@ def test_estimate_curve_inner_radius_hypotrochoid_uses_abs_abs_difference_minus_
     assert estimate_curve_inner_radius(request) == pytest.approx(expected)
 
 
-def test_estimate_curve_inner_radius_epitrochoid_uses_scaled_proxy_and_clamps() -> None:
+def test_estimate_curve_inner_radius_epitrochoid_uses_radial_band_proxy_and_clamps() -> None:
     request = CircularSpiroRequest(
         fixed_radius=120,
         rolling_radius=45,
@@ -183,9 +183,63 @@ def test_estimate_curve_inner_radius_epitrochoid_uses_scaled_proxy_and_clamps() 
     )
 
     inner_radius = estimate_curve_inner_radius(request)
-    expected = abs((120 + 45) - 60) * 0.15
+    expected = abs((120 + 45) - 60)
     assert inner_radius == pytest.approx(expected)
     assert 0 <= inner_radius <= estimate_curve_extent_radius(request) * 0.98
+
+
+@pytest.mark.parametrize(
+    'curve_request',
+    (
+        CircularSpiroRequest(
+            fixed_radius=120,
+            rolling_radius=45,
+            pen_distance=60,
+            steps=180,
+            curve_type=SpiroType.HYPOTROCHOID,
+        ),
+        CircularSpiroRequest(
+            fixed_radius=120,
+            rolling_radius=45,
+            pen_distance=60,
+            steps=180,
+            curve_type=SpiroType.EPITROCHOID,
+        ),
+        CircularSpiroRequest(
+            fixed_radius=10,
+            rolling_radius=5,
+            pen_distance=200,
+            steps=180,
+            curve_type=SpiroType.EPITROCHOID,
+        ),
+    ),
+)
+def test_radial_band_proxies_obey_inner_outer_invariants(curve_request: CircularSpiroRequest) -> None:
+    outer_radius = estimate_curve_extent_radius(curve_request)
+    inner_radius = estimate_curve_inner_radius(curve_request)
+
+    assert outer_radius >= 1.0
+    assert 0.0 <= inner_radius <= outer_radius * 0.98
+
+
+@pytest.mark.parametrize('curve_type', (SpiroType.HYPOTROCHOID, SpiroType.EPITROCHOID))
+def test_estimate_curve_extent_radius_increases_with_pen_distance(curve_type: SpiroType) -> None:
+    small_d_request = CircularSpiroRequest(
+        fixed_radius=120,
+        rolling_radius=45,
+        pen_distance=10,
+        steps=180,
+        curve_type=curve_type,
+    )
+    large_d_request = CircularSpiroRequest(
+        fixed_radius=120,
+        rolling_radius=45,
+        pen_distance=60,
+        steps=180,
+        curve_type=curve_type,
+    )
+
+    assert estimate_curve_extent_radius(large_d_request) > estimate_curve_extent_radius(small_d_request)
 
 
 def test_compute_visual_density_score_decreases_for_larger_footprint_same_metrics() -> None:

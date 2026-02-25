@@ -84,23 +84,28 @@ def _clamp(value: float, lower: float, upper: float) -> float:
     return max(lower, min(upper, value))
 
 
-def estimate_curve_extent_radius(request: CircularSpiroRequest) -> float:
+def _estimate_radial_band(request: CircularSpiroRequest) -> tuple[float, float]:
     if request.curve_type is SpiroType.HYPOTROCHOID:
-        estimated_extent_radius = abs(request.fixed_radius - request.rolling_radius) + request.pen_distance
+        center_radius = abs(request.fixed_radius - request.rolling_radius)
     else:
-        estimated_extent_radius = request.fixed_radius + request.rolling_radius + request.pen_distance
-    return max(1.0, estimated_extent_radius)
+        center_radius = request.fixed_radius + request.rolling_radius
+
+    raw_inner = abs(center_radius - request.pen_distance)
+    raw_outer = center_radius + request.pen_distance
+
+    outer_radius = max(1.0, raw_outer)
+    inner_radius = min(max(0.0, raw_inner), outer_radius * 0.98)
+    return inner_radius, outer_radius
+
+
+def estimate_curve_extent_radius(request: CircularSpiroRequest) -> float:
+    _, outer_radius = _estimate_radial_band(request)
+    return outer_radius
 
 
 def estimate_curve_inner_radius(request: CircularSpiroRequest) -> float:
-    outer_radius = estimate_curve_extent_radius(request)
-    if request.curve_type is SpiroType.HYPOTROCHOID:
-        inner_radius = abs(abs(request.fixed_radius - request.rolling_radius) - request.pen_distance)
-    else:
-        inner_radius = abs((request.fixed_radius + request.rolling_radius) - request.pen_distance) * 0.15
-
-    inner_radius = max(0.0, inner_radius)
-    return min(inner_radius, outer_radius * 0.98)
+    inner_radius, _ = _estimate_radial_band(request)
+    return inner_radius
 
 
 def compute_active_band_compression_factor(request: CircularSpiroRequest) -> float:
