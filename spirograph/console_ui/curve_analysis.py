@@ -3,6 +3,9 @@ from dataclasses import dataclass
 
 from spirograph.generation import SpiroType
 from spirograph.generation.requests import CircularSpiroRequest
+from spirograph.viewport import Viewport
+
+REFERENCE_FOOTPRINT_RADIUS = min(Viewport.HALF_WIDTH, Viewport.HALF_HEIGHT) * 0.45
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +79,26 @@ def compute_density_score(metrics: RepeatMetrics) -> float:
     return closure_score * ratio_factor * offset_factor_multiplier
 
 
+def _clamp(value: float, lower: float, upper: float) -> float:
+    return max(lower, min(upper, value))
+
+
+def estimate_curve_extent_radius(request: CircularSpiroRequest) -> float:
+    if request.curve_type is SpiroType.HYPOTROCHOID:
+        estimated_extent_radius = abs(request.fixed_radius - request.rolling_radius) + request.pen_distance
+    else:
+        estimated_extent_radius = request.fixed_radius + request.rolling_radius + request.pen_distance
+    return max(1.0, estimated_extent_radius)
+
+
+def compute_visual_density_score(metrics: RepeatMetrics, request: CircularSpiroRequest) -> float:
+    structural_density_score = compute_density_score(metrics)
+    estimated_extent_radius = estimate_curve_extent_radius(request)
+    footprint_scale = estimated_extent_radius / REFERENCE_FOOTPRINT_RADIUS
+    clamped_footprint_scale = _clamp(footprint_scale, 0.65, 1.75)
+    return structural_density_score / clamped_footprint_scale
+
+
 def classify_density(score: float) -> str:
     if score < 8:
         return 'Low'
@@ -145,8 +168,9 @@ def describe_curve(request: CircularSpiroRequest) -> None:
     metrics = compute_curve_repeat_metrics(request)
     closure_structure = classify_closure_structure(metrics.laps_to_close, metrics.spins_to_close)
     symmetry_feel = classify_symmetry_feel(metrics)
-    density_score = compute_density_score(metrics)
-    density_label = classify_density(density_score)
+    visual_density_score = compute_visual_density_score(metrics, request)
+    density_label = classify_density(visual_density_score)
+    estimated_extent_radius = estimate_curve_extent_radius(request)
     ratio_desc = _describe_ratio_complexity(metrics.ratio)
     offset_desc = describe_offset_tendency(metrics.offset_factor, request.curve_type)
     density_notes = _build_density_notes(metrics, density_label)
@@ -166,4 +190,5 @@ def describe_curve(request: CircularSpiroRequest) -> None:
 
     print(f'\n  Perceived symmetry while rendering: {symmetry_feel}')
     print(f'\n  Visual density estimate: {density_label}')
+    print(f'  Estimated footprint radius: ~{round(estimated_extent_radius)} (larger curves can appear less dense)')
     print(f'    Notes: {density_notes}\n')

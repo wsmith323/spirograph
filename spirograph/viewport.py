@@ -1,0 +1,6 @@
+class Viewport:
+    WIDTH = 1000.0
+    HEIGHT = 1000.0
+    HALF_WIDTH = WIDTH / 2.0
+    HALF_HEIGHT = HEIGHT / 2.0
+    MIN_DIMENSION = min(WIDTH, HEIGHT)

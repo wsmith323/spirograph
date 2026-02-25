@@ -1,14 +1,17 @@
 import pytest
 
 from spirograph.console_ui.curve_analysis import (
+    REFERENCE_FOOTPRINT_RADIUS,
     RepeatMetrics,
     classify_closure_structure,
     classify_density,
     classify_symmetry_feel,
     compute_curve_repeat_metrics,
     compute_density_score,
+    compute_visual_density_score,
     describe_curve,
     describe_offset_tendency,
+    estimate_curve_extent_radius,
 )
 from spirograph.generation.requests import CircularSpiroRequest
 from spirograph.generation.types import SpiroType
@@ -130,6 +133,79 @@ def test_describe_offset_tendency_is_curve_type_aware() -> None:
     assert 'outward' in epi_text
 
 
+def test_estimate_curve_extent_radius_hypotrochoid_uses_abs_difference_plus_d() -> None:
+    request = CircularSpiroRequest(
+        fixed_radius=120,
+        rolling_radius=45,
+        pen_distance=60,
+        steps=180,
+        curve_type=SpiroType.HYPOTROCHOID,
+    )
+
+    assert estimate_curve_extent_radius(request) == pytest.approx(abs(120 - 45) + 60)
+
+
+def test_estimate_curve_extent_radius_epitrochoid_uses_sum_plus_d() -> None:
+    request = CircularSpiroRequest(
+        fixed_radius=120,
+        rolling_radius=45,
+        pen_distance=60,
+        steps=180,
+        curve_type=SpiroType.EPITROCHOID,
+    )
+
+    assert estimate_curve_extent_radius(request) == pytest.approx(120 + 45 + 60)
+
+
+def test_compute_visual_density_score_decreases_for_larger_footprint_same_metrics() -> None:
+    metrics = RepeatMetrics(1, 30, 40, 3.0, 1.0)
+    small_request = CircularSpiroRequest(
+        fixed_radius=120,
+        rolling_radius=45,
+        pen_distance=20,
+        steps=180,
+        curve_type=SpiroType.HYPOTROCHOID,
+    )
+    large_request = CircularSpiroRequest(
+        fixed_radius=320,
+        rolling_radius=45,
+        pen_distance=160,
+        steps=180,
+        curve_type=SpiroType.EPITROCHOID,
+    )
+
+    small_score = compute_visual_density_score(metrics, small_request)
+    large_score = compute_visual_density_score(metrics, large_request)
+
+    assert small_score > large_score
+
+
+def test_compute_visual_density_score_uses_lower_and_upper_footprint_clamps() -> None:
+    metrics = RepeatMetrics(1, 30, 40, 3.0, 1.0)
+    tiny_request = CircularSpiroRequest(
+        fixed_radius=2,
+        rolling_radius=1,
+        pen_distance=0,
+        steps=180,
+        curve_type=SpiroType.HYPOTROCHOID,
+    )
+    huge_request = CircularSpiroRequest(
+        fixed_radius=1000,
+        rolling_radius=900,
+        pen_distance=500,
+        steps=180,
+        curve_type=SpiroType.EPITROCHOID,
+    )
+
+    structural_score = compute_density_score(metrics)
+    tiny_score = compute_visual_density_score(metrics, tiny_request)
+    huge_score = compute_visual_density_score(metrics, huge_request)
+
+    assert tiny_score == pytest.approx(structural_score / 0.65)
+    assert huge_score == pytest.approx(structural_score / 1.75)
+    assert REFERENCE_FOOTPRINT_RADIUS > 0
+
+
 @pytest.mark.parametrize(
     'metrics, expected_label',
     (
@@ -169,6 +245,7 @@ def test_describe_curve_output_contains_new_labels_and_no_approx_lobes(
     assert 'Closure repeats' in output
     assert 'Perceived symmetry while rendering' in output
     assert 'Visual density estimate' in output
+    assert 'Estimated footprint radius' in output
     assert 'Notes:' in output
     assert 'Interpretation:' not in output
     assert 'Symmetry feel' not in output

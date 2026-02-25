@@ -1,12 +1,14 @@
 import turtle
 
+from spirograph.viewport import Viewport
+
 from .types import CurveRenderer, RenderPlan, RenderSettings
 
 
 class TurtleGraphicsRenderer(CurveRenderer):
     def __init__(self) -> None:
         self._screen = turtle.Screen()
-        self._screen.setup(width=1000, height=1000)
+        self._screen.setup(width=int(Viewport.WIDTH), height=int(Viewport.HEIGHT))
         self._screen.colormode(255)
         self._screen.tracer(0, 0)
         self._pen = turtle.Turtle()
