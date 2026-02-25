@@ -11,6 +11,10 @@ def make_prompt_label(identifier: str) -> str:
     return ' '.join(word.capitalize() for word in identifier.split('_'))
 
 
+def color_input_examples() -> str:
+    return 'named colors, #RRGGBB, or R,G,B (0-255)'
+
+
 def prompt_enum(label: str, enum_cls, default):
     values = list(enum_cls)
     descriptions_by_enum = {
@@ -135,7 +139,7 @@ def prompt_positive_int_or_random(
     label = make_prompt_label(identifier)
     while True:
         suffix = f' [{default_value}]' if default_value is not None else ''
-        raw_value = input(f"{label}{suffix} (or 'r'): ").strip()
+        raw_value = input(f"{label}{suffix} (or 'r'/'rand'/'random'): ").strip()
 
         if raw_value.lower() in ('r', 'rand'):
             value = random_factory()
@@ -184,7 +188,7 @@ def prompt_lock_value(identifier: str, current_value: int | None) -> int | None:
     current_display = 'r' if current_value is None else str(current_value)
 
     while True:
-        raw_value = input(f"{label} lock [{current_display}] (number or 'r'): ").strip().lower()
+        raw_value = input(f"{label} lock [{current_display}] (number or 'r'/'rand'/'random'): ").strip().lower()
         if raw_value == '':
             return current_value
         if raw_value in ('r', 'rand', 'random'):
@@ -203,10 +207,10 @@ def prompt_lock_value(identifier: str, current_value: int | None) -> int | None:
         return parsed_value
 
 
-def parse_color(value: str, default: Color) -> Color:
+def try_parse_color(value: str) -> tuple[bool, Color]:
     cleaned = value.strip().lower()
     if cleaned == '':
-        return default
+        return False, Color(0, 0, 0)
 
     named_colors = {
         'black': Color(0, 0, 0),
@@ -221,7 +225,7 @@ def parse_color(value: str, default: Color) -> Color:
         'grey': Color(128, 128, 128),
     }
     if cleaned in named_colors:
-        return named_colors[cleaned]
+        return True, named_colors[cleaned]
 
     if cleaned.startswith('#'):
         cleaned = cleaned[1:]
@@ -232,8 +236,8 @@ def parse_color(value: str, default: Color) -> Color:
             g = int(cleaned[2:4], 16)
             b = int(cleaned[4:6], 16)
         except ValueError:
-            return default
-        return Color(r, g, b)
+            return False, Color(0, 0, 0)
+        return True, Color(r, g, b)
 
     if ',' in cleaned:
         parts = [part.strip() for part in cleaned.split(',')]
@@ -241,11 +245,18 @@ def parse_color(value: str, default: Color) -> Color:
             try:
                 r, g, b = (int(part) for part in parts)
             except ValueError:
-                return default
+                return False, Color(0, 0, 0)
             if all(0 <= channel <= 255 for channel in (r, g, b)):
-                return Color(r, g, b)
+                return True, Color(r, g, b)
 
-    return default
+    return False, Color(0, 0, 0)
+
+
+def parse_color(value: str, default: Color) -> Color:
+    parsed, color = try_parse_color(value)
+    if not parsed:
+        return default
+    return color
 
 
 def compute_steps(fixed_radius: int, rolling_radius: int) -> int:

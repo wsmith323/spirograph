@@ -10,9 +10,9 @@ from .console_ui.guidance import (
     guide_before_rolling_radius,
 )
 from .console_ui.prompts import (
+    color_input_examples,
     compute_steps,
     make_prompt_label,
-    parse_color,
     prompt_drawing_speed,
     prompt_enum,
     prompt_lock_value,
@@ -20,6 +20,7 @@ from .console_ui.prompts import (
     prompt_positive_float,
     prompt_positive_int,
     prompt_positive_int_or_random,
+    try_parse_color,
 )
 from .console_ui.random import (
     random_fixed_circle_radius,
@@ -44,32 +45,20 @@ MAX_LAPS_TO_CLOSE = 200
 MENU_TEXT = """
 Next action:
 Geometry:
-    m - Manually input R, r, and d
-    a - Print analysis of current curve
+    m - Manual: input R, r, and d
+    a - Analyze current curve
+    r - Re-render last curve with current visual settings
 Session:
     e - Edit Session settings
     p - Print session settings
 Random:
     b - Batch: run N random curves with a pause in between
     l - Locks: set fixed values for random runs (R/r/d)
-    [Enter] - Generate next random curve (same settings)
+    [Enter] - Random: generate next curve (same settings)
+Help:
+    h / ? - Show this menu
 Program:
     q - Quit
-"""
-
-SESSION_MENU_TEXT = """
-Session settings:
-    1 - Curve type
-    2 - Random constraint mode
-    3 - Random evolution mode
-    4 - Color mode
-    5 - Color (only when mode is fixed)
-    6 - Laps per color (only when mode is random_every_n_laps)
-    7 - Spins per color (only when mode is random_every_n_spins)
-    8 - Line width
-    9 - Drawing speed
-    p - Print session settings
-    [Enter] / q - Done
 """
 
 
@@ -80,10 +69,16 @@ def compute_laps_to_close(fixed_radius: int, rolling_radius: int) -> int:
 
 def prompt_color_value(current_color: Color) -> Color:
     label = make_prompt_label('color')
-    raw_value = input(f'{label} [{current_color.as_hex}]: ').strip()
-    if raw_value == '':
-        return current_color
-    return parse_color(raw_value, current_color)
+    while True:
+        raw_value = input(f'{label} [{current_color.as_hex}]: ').strip()
+        if raw_value == '':
+            return current_color
+
+        parsed, color = try_parse_color(raw_value)
+        if parsed:
+            return color
+
+        print(f'Invalid color. Enter {color_input_examples()}. Press Enter to keep {current_color.as_hex}.')
 
 
 def print_selected_parameters(request: CircularSpiroRequest, session: ConsoleUiSessionState) -> None:
@@ -130,6 +125,74 @@ Drawing:
 
 def print_menu(session: ConsoleUiSessionState) -> None:
     print(MENU_TEXT)
+
+
+def format_lock_value(value: int | None) -> str:
+    return 'r' if value is None else str(value)
+
+
+def format_color_summary(session: ConsoleUiSessionState) -> str:
+    if session.color_mode is ColorMode.FIXED:
+        return f'{session.color_mode.value}({session.color.as_hex})'
+    if session.color_mode is ColorMode.RANDOM_EVERY_N_LAPS:
+        return f'{session.color_mode.value}(n={max(1, session.laps_per_color)})'
+    if session.color_mode is ColorMode.RANDOM_EVERY_N_SPINS:
+        return f'{session.color_mode.value}(n={max(1, session.spins_per_color)})'
+    return session.color_mode.value
+
+
+def print_prompt_status(session: ConsoleUiSessionState) -> None:
+    last_curve_status = 'yes' if session.last_request is not None else 'no'
+    print(
+        ' | '.join(
+            (
+                f'curve={session.curve_type.value}',
+                f'rand={session.random_constraint_mode.value}/{session.random_evolution_mode.value}',
+                (
+                    'locks='
+                    f'R:{format_lock_value(session.locked_fixed_radius)} '
+                    f'r:{format_lock_value(session.locked_rolling_radius)} '
+                    f'd:{format_lock_value(session.locked_pen_distance)}'
+                ),
+                f'color={format_color_summary(session)}',
+                f'width={session.line_width}',
+                f'speed={session.drawing_speed}',
+                f'last_curve={last_curve_status}',
+            )
+        )
+    )
+
+
+def build_session_menu_text(session: ConsoleUiSessionState) -> str:
+    color_disabled_suffix = (
+        ''
+        if session.color_mode is ColorMode.FIXED
+        else f" [disabled: mode is '{session.color_mode.value}']"
+    )
+    laps_disabled_suffix = (
+        ''
+        if session.color_mode is ColorMode.RANDOM_EVERY_N_LAPS
+        else f" [disabled: mode is '{session.color_mode.value}']"
+    )
+    spins_disabled_suffix = (
+        ''
+        if session.color_mode is ColorMode.RANDOM_EVERY_N_SPINS
+        else f" [disabled: mode is '{session.color_mode.value}']"
+    )
+    return f"""
+Session settings:
+    1 - Curve type
+    2 - Random constraint mode
+    3 - Random evolution mode
+    4 - Color mode
+    5 - Color{color_disabled_suffix}
+    6 - Laps per color{laps_disabled_suffix}
+    7 - Spins per color{spins_disabled_suffix}
+    8 - Line width
+    9 - Drawing speed
+    p - Print session settings
+    [Enter] / q - Done
+"""
 
 
 def build_request(
@@ -235,7 +298,7 @@ def edit_geometry(session: ConsoleUiSessionState) -> CircularSpiroRequest:
 def edit_session_settings(session: ConsoleUiSessionState) -> None:
     while True:
         print_session_status(session)
-        print(SESSION_MENU_TEXT)
+        print(build_session_menu_text(session))
         command = input('session> ').strip().lower()
 
         match command:
@@ -322,6 +385,46 @@ def resolve_interval(session: ConsoleUiSessionState) -> int:
     return 1
 
 
+def compute_spins_to_close(request: CircularSpiroRequest) -> int:
+    fixed = int(request.fixed_radius)
+    rolling = int(request.rolling_radius)
+    gcd_value = math.gcd(fixed, rolling)
+    if gcd_value == 0:
+        return 1
+
+    if request.curve_type is SpiroType.HYPOTROCHOID:
+        spin_numerator = abs(fixed - rolling)
+    else:
+        spin_numerator = fixed + rolling
+
+    return max(1, spin_numerator // gcd_value)
+
+
+def print_render_preview(request: CircularSpiroRequest, session: ConsoleUiSessionState) -> None:
+    laps_to_close = compute_laps_to_close(int(request.fixed_radius), int(request.rolling_radius))
+    spins_to_close = compute_spins_to_close(request)
+    interval = resolve_interval(session)
+    print(
+        '\nRender preview: '
+        f'steps={request.steps}, '
+        f'laps~{laps_to_close}, '
+        f'spins~{spins_to_close}, '
+        f'color={session.color_mode.value}, '
+        f'interval={interval}'
+    )
+
+    slow_reasons: list[str] = []
+    if request.steps >= 15000:
+        slow_reasons.append(f'high step count ({request.steps})')
+    if laps_to_close > MAX_LAPS_TO_CLOSE:
+        slow_reasons.append(f'many laps ({laps_to_close})')
+    if spins_to_close > MAX_LAPS_TO_CLOSE:
+        slow_reasons.append(f'many spins ({spins_to_close})')
+
+    if slow_reasons:
+        print(f"Warning: render may be slow due to {', '.join(slow_reasons)}.")
+
+
 def render_request(
     orchestrator: CurveOrchestrator,
     request: CircularSpiroRequest,
@@ -338,6 +441,21 @@ def render_request(
     orchestrator.run(request, settings)
 
 
+def run_request_flow(
+    orchestrator: CurveOrchestrator,
+    request: CircularSpiroRequest,
+    session: ConsoleUiSessionState,
+    *,
+    include_analysis: bool = True,
+) -> None:
+    session.last_request = request
+    print_selected_parameters(request, session)
+    if include_analysis:
+        describe_curve(request)
+    print_render_preview(request, session)
+    render_request(orchestrator, request, session)
+
+
 def main() -> None:
     registry = GeneratorRegistry()
     registry.register(CircularSpiroGenerator())
@@ -347,14 +465,19 @@ def main() -> None:
     orchestrator = CurveOrchestrator(registry, builder, renderer)
 
     session = ConsoleUiSessionState()
+    print_menu(session)
 
     while True:
-        print_menu(session)
+        print_prompt_status(session)
         command = input('> ').strip().lower()
 
         match command:
             case 'q':
                 break
+
+            case 'h' | '?':
+                print_menu(session)
+                continue
 
             case 'a':
                 if session.last_request is None:
@@ -363,18 +486,27 @@ def main() -> None:
                     describe_curve(session.last_request)
                 continue
 
+            case 'r':
+                if session.last_request is None:
+                    print('No curve yet. Press Enter to generate one, or use m to create one manually.')
+                    continue
+                print('Re-rendering last curve with current visual settings...')
+                print_render_preview(session.last_request, session)
+                render_request(orchestrator, session.last_request, session)
+                continue
+
             case 'b':
                 count = prompt_positive_int('batch_count', default_value=10)
                 pause_seconds = prompt_non_negative_float('pause_seconds', default_value=2.0)
-
-                for _ in range(count):
-                    request = generate_random_request(session)
-                    session.last_request = request
-
-                    print_selected_parameters(request, session)
-                    describe_curve(request)
-                    render_request(orchestrator, request, session)
-                    time.sleep(pause_seconds)
+                completed_count = 0
+                try:
+                    for _ in range(count):
+                        request = generate_random_request(session)
+                        run_request_flow(orchestrator, request, session)
+                        completed_count += 1
+                        time.sleep(pause_seconds)
+                except KeyboardInterrupt:
+                    print(f'\nBatch interrupted. Completed {completed_count}/{count} curve(s).')
 
                 continue
 
@@ -388,10 +520,7 @@ def main() -> None:
 
             case 'm':
                 request = edit_geometry(session)
-                session.last_request = request
-                print_selected_parameters(request, session)
-                describe_curve(request)
-                render_request(orchestrator, request, session)
+                run_request_flow(orchestrator, request, session)
                 continue
 
             case 'p':
@@ -399,10 +528,7 @@ def main() -> None:
 
             case '':
                 request = generate_random_request(session)
-                session.last_request = request
-                print_selected_parameters(request, session)
-                describe_curve(request)
-                render_request(orchestrator, request, session)
+                run_request_flow(orchestrator, request, session)
 
             case _:
                 print('Unknown command')
