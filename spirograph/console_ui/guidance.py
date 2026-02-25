@@ -160,8 +160,12 @@ def describe_curve(request: CircularSpiroRequest) -> None:
     )
     print(f'  Radius ratio R/r: {metrics.ratio:.3f} ({ratio_desc})')
     print(f'  Offset factor d/r: {metrics.offset_factor:.3f} ({offset_desc})')
-    print(f'  Symmetry feel: {symmetry_feel} (heuristic)')
-    print(f'  Visual density estimate: {density_label} (heuristic)')
+    print(f'  Perceived symmetry while drawing: {symmetry_feel}')
+    print(f'  Visual density estimate: {density_label}')
+    print(
+        '  Interpretation: This describes how clearly the repeating structure is perceived while tracing, '
+        'not whether the curve closes.'
+    )
     print(f'  Notes: {notes}\n')
 
 

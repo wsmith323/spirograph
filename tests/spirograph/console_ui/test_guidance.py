@@ -165,6 +165,8 @@ def test_describe_curve_output_contains_new_labels_and_no_approx_lobes(
     output = capsys.readouterr().out
 
     assert 'Closure repeats' in output
-    assert 'Symmetry feel' in output
+    assert 'Perceived symmetry while drawing' in output
     assert 'Visual density estimate' in output
+    assert 'Interpretation:' in output
+    assert 'Symmetry feel' not in output
     assert 'approx lobes' not in output
