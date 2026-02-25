@@ -149,21 +149,21 @@ def describe_curve(request: CircularSpiroRequest) -> None:
     density_label = classify_density(density_score)
     ratio_desc = _describe_ratio_complexity(metrics.ratio)
     offset_desc = describe_offset_tendency(metrics.offset_factor, request.curve_type)
-    notes = _build_density_notes(metrics, density_label)
+    density_notes = _build_density_notes(metrics, density_label)
 
     print('\nCurve analysis:')
     print(f'  Curve type: {_describe_curve_type(request.curve_type)}')
-    print(
-        '  Closure repeats: '
-        f'laps~{metrics.laps_to_close}, spins~{metrics.spins_to_close} '
-        f'(closure structure: {closure_structure})'
-    )
-    print(f'  Radius ratio R/r: {metrics.ratio:.3f} ({ratio_desc})')
+
+    print(f'\n  Radius ratio R/r: {metrics.ratio:.3f} ({ratio_desc})')
     print(f'  Offset factor d/r: {metrics.offset_factor:.3f} ({offset_desc})')
-    print(f'  Perceived symmetry while drawing: {symmetry_feel}')
-    print(f'  Visual density estimate: {density_label}')
+
     print(
-        '  Interpretation: This describes how clearly the repeating structure is perceived while tracing, '
-        'not whether the curve closes.'
+        '\n  Closure repeats: '
+        f'\n    laps~{metrics.laps_to_close}'
+        f'\n    spins~{metrics.spins_to_close} '
+        f'\n    closure structure: {closure_structure}'
     )
-    print(f'  Notes: {notes}\n')
+
+    print(f'\n  Perceived symmetry while rendering: {symmetry_feel}')
+    print(f'\n  Visual density estimate: {density_label}')
+    print(f'    Notes: {density_notes}\n')

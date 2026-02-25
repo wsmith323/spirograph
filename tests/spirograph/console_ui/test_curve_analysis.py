@@ -167,8 +167,9 @@ def test_describe_curve_output_contains_new_labels_and_no_approx_lobes(
     assert 'Curve analysis:' in output
     assert 'Curve guidance:' not in output
     assert 'Closure repeats' in output
-    assert 'Perceived symmetry while drawing' in output
+    assert 'Perceived symmetry while rendering' in output
     assert 'Visual density estimate' in output
-    assert 'Interpretation:' in output
+    assert 'Notes:' in output
+    assert 'Interpretation:' not in output
     assert 'Symmetry feel' not in output
     assert 'approx lobes' not in output
