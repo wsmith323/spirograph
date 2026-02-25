@@ -3,8 +3,8 @@ import time
 import math
 
 from spirograph.generation import SpiroType
-from .console_ui.guidance import (
-    describe_curve,
+from .console_ui.curve_analysis import describe_curve
+from .console_ui.input_guidance import (
     guide_before_fixed_radius,
     guide_before_pen_offset,
     guide_before_rolling_radius,

@@ -1,6 +1,6 @@
 import pytest
 
-from spirograph.console_ui.guidance import (
+from spirograph.console_ui.curve_analysis import (
     RepeatMetrics,
     classify_closure_structure,
     classify_density,
@@ -164,6 +164,8 @@ def test_describe_curve_output_contains_new_labels_and_no_approx_lobes(
     describe_curve(request)
     output = capsys.readouterr().out
 
+    assert 'Curve analysis:' in output
+    assert 'Curve guidance:' not in output
     assert 'Closure repeats' in output
     assert 'Perceived symmetry while drawing' in output
     assert 'Visual density estimate' in output
