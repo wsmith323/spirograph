@@ -1,17 +1,20 @@
 import pytest
 
 from spirograph.console_ui.curve_analysis import (
+    REFERENCE_ACTIVE_AREA_PROXY,
     REFERENCE_FOOTPRINT_RADIUS,
     RepeatMetrics,
     classify_closure_structure,
     classify_density,
     classify_symmetry_feel,
+    compute_active_band_compression_factor,
     compute_curve_repeat_metrics,
     compute_density_score,
     compute_visual_density_score,
     describe_curve,
     describe_offset_tendency,
     estimate_curve_extent_radius,
+    estimate_curve_inner_radius,
 )
 from spirograph.generation.requests import CircularSpiroRequest
 from spirograph.generation.types import SpiroType
@@ -157,6 +160,34 @@ def test_estimate_curve_extent_radius_epitrochoid_uses_sum_plus_d() -> None:
     assert estimate_curve_extent_radius(request) == pytest.approx(120 + 45 + 60)
 
 
+def test_estimate_curve_inner_radius_hypotrochoid_uses_abs_abs_difference_minus_d() -> None:
+    request = CircularSpiroRequest(
+        fixed_radius=120,
+        rolling_radius=45,
+        pen_distance=60,
+        steps=180,
+        curve_type=SpiroType.HYPOTROCHOID,
+    )
+
+    expected = abs(abs(120 - 45) - 60)
+    assert estimate_curve_inner_radius(request) == pytest.approx(expected)
+
+
+def test_estimate_curve_inner_radius_epitrochoid_uses_scaled_proxy_and_clamps() -> None:
+    request = CircularSpiroRequest(
+        fixed_radius=120,
+        rolling_radius=45,
+        pen_distance=60,
+        steps=180,
+        curve_type=SpiroType.EPITROCHOID,
+    )
+
+    inner_radius = estimate_curve_inner_radius(request)
+    expected = abs((120 + 45) - 60) * 0.15
+    assert inner_radius == pytest.approx(expected)
+    assert 0 <= inner_radius <= estimate_curve_extent_radius(request) * 0.98
+
+
 def test_compute_visual_density_score_decreases_for_larger_footprint_same_metrics() -> None:
     metrics = RepeatMetrics(1, 30, 40, 3.0, 1.0)
     small_request = CircularSpiroRequest(
@@ -180,6 +211,55 @@ def test_compute_visual_density_score_decreases_for_larger_footprint_same_metric
     assert small_score > large_score
 
 
+def test_compute_active_band_compression_factor_increases_with_larger_hole_same_outer_radius() -> None:
+    smaller_hole_request = CircularSpiroRequest(
+        fixed_radius=80,
+        rolling_radius=30,
+        pen_distance=90,
+        steps=180,
+        curve_type=SpiroType.EPITROCHOID,
+    )
+    larger_hole_request = CircularSpiroRequest(
+        fixed_radius=140,
+        rolling_radius=30,
+        pen_distance=30,
+        steps=180,
+        curve_type=SpiroType.EPITROCHOID,
+    )
+
+    assert estimate_curve_extent_radius(smaller_hole_request) == pytest.approx(
+        estimate_curve_extent_radius(larger_hole_request)
+    )
+    smaller_hole_factor = compute_active_band_compression_factor(smaller_hole_request)
+    larger_hole_factor = compute_active_band_compression_factor(larger_hole_request)
+
+    assert larger_hole_factor > smaller_hole_factor
+
+
+def test_compute_active_band_compression_factor_has_reasonable_clamps() -> None:
+    tiny_active_area_request = CircularSpiroRequest(
+        fixed_radius=120,
+        rolling_radius=60,
+        pen_distance=1,
+        steps=180,
+        curve_type=SpiroType.HYPOTROCHOID,
+    )
+    huge_active_area_request = CircularSpiroRequest(
+        fixed_radius=1000,
+        rolling_radius=10,
+        pen_distance=990,
+        steps=180,
+        curve_type=SpiroType.EPITROCHOID,
+    )
+
+    tiny_factor = compute_active_band_compression_factor(tiny_active_area_request)
+    huge_factor = compute_active_band_compression_factor(huge_active_area_request)
+
+    assert 0.75 <= tiny_factor <= 1.6
+    assert 0.75 <= huge_factor <= 1.6
+    assert REFERENCE_ACTIVE_AREA_PROXY > 0
+
+
 def test_compute_visual_density_score_uses_lower_and_upper_footprint_clamps() -> None:
     metrics = RepeatMetrics(1, 30, 40, 3.0, 1.0)
     tiny_request = CircularSpiroRequest(
@@ -200,10 +280,35 @@ def test_compute_visual_density_score_uses_lower_and_upper_footprint_clamps() ->
     structural_score = compute_density_score(metrics)
     tiny_score = compute_visual_density_score(metrics, tiny_request)
     huge_score = compute_visual_density_score(metrics, huge_request)
+    tiny_band_factor = compute_active_band_compression_factor(tiny_request)
+    huge_band_factor = compute_active_band_compression_factor(huge_request)
 
-    assert tiny_score == pytest.approx(structural_score / 0.65)
-    assert huge_score == pytest.approx(structural_score / 1.75)
+    assert tiny_score == pytest.approx((structural_score / 0.65) * tiny_band_factor)
+    assert huge_score == pytest.approx((structural_score / 1.75) * huge_band_factor)
     assert REFERENCE_FOOTPRINT_RADIUS > 0
+
+
+def test_compute_visual_density_score_increases_with_larger_hole_when_outer_size_is_similar() -> None:
+    metrics = RepeatMetrics(1, 30, 40, 3.0, 1.0)
+    smaller_hole_request = CircularSpiroRequest(
+        fixed_radius=120,
+        rolling_radius=60,
+        pen_distance=55,
+        steps=180,
+        curve_type=SpiroType.HYPOTROCHOID,
+    )
+    larger_hole_request = CircularSpiroRequest(
+        fixed_radius=120,
+        rolling_radius=60,
+        pen_distance=10,
+        steps=180,
+        curve_type=SpiroType.HYPOTROCHOID,
+    )
+
+    smaller_hole_score = compute_visual_density_score(metrics, smaller_hole_request)
+    larger_hole_score = compute_visual_density_score(metrics, larger_hole_request)
+
+    assert larger_hole_score > smaller_hole_score
 
 
 @pytest.mark.parametrize(
@@ -246,6 +351,7 @@ def test_describe_curve_output_contains_new_labels_and_no_approx_lobes(
     assert 'Perceived symmetry while rendering' in output
     assert 'Visual density estimate' in output
     assert 'Estimated footprint radius' in output
+    assert 'Estimated inner empty radius' in output
     assert 'Notes:' in output
     assert 'Interpretation:' not in output
     assert 'Symmetry feel' not in output

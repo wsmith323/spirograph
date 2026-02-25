@@ -6,6 +6,7 @@ from spirograph.generation.requests import CircularSpiroRequest
 from spirograph.viewport import Viewport
 
 REFERENCE_FOOTPRINT_RADIUS = min(Viewport.HALF_WIDTH, Viewport.HALF_HEIGHT) * 0.45
+REFERENCE_ACTIVE_AREA_PROXY = REFERENCE_FOOTPRINT_RADIUS**2
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,12 +92,32 @@ def estimate_curve_extent_radius(request: CircularSpiroRequest) -> float:
     return max(1.0, estimated_extent_radius)
 
 
+def estimate_curve_inner_radius(request: CircularSpiroRequest) -> float:
+    outer_radius = estimate_curve_extent_radius(request)
+    if request.curve_type is SpiroType.HYPOTROCHOID:
+        inner_radius = abs(abs(request.fixed_radius - request.rolling_radius) - request.pen_distance)
+    else:
+        inner_radius = abs((request.fixed_radius + request.rolling_radius) - request.pen_distance) * 0.15
+
+    inner_radius = max(0.0, inner_radius)
+    return min(inner_radius, outer_radius * 0.98)
+
+
+def compute_active_band_compression_factor(request: CircularSpiroRequest) -> float:
+    outer_radius = estimate_curve_extent_radius(request)
+    inner_radius = estimate_curve_inner_radius(request)
+    active_area_proxy = max(1.0, outer_radius**2 - inner_radius**2)
+    band_area_ratio = REFERENCE_ACTIVE_AREA_PROXY / active_area_proxy
+    return _clamp(band_area_ratio**0.25, 0.75, 1.6)
+
+
 def compute_visual_density_score(metrics: RepeatMetrics, request: CircularSpiroRequest) -> float:
     structural_density_score = compute_density_score(metrics)
     estimated_extent_radius = estimate_curve_extent_radius(request)
     footprint_scale = estimated_extent_radius / REFERENCE_FOOTPRINT_RADIUS
     clamped_footprint_scale = _clamp(footprint_scale, 0.65, 1.75)
-    return structural_density_score / clamped_footprint_scale
+    band_compression_factor = compute_active_band_compression_factor(request)
+    return (structural_density_score / clamped_footprint_scale) * band_compression_factor
 
 
 def classify_density(score: float) -> str:
@@ -171,6 +192,7 @@ def describe_curve(request: CircularSpiroRequest) -> None:
     visual_density_score = compute_visual_density_score(metrics, request)
     density_label = classify_density(visual_density_score)
     estimated_extent_radius = estimate_curve_extent_radius(request)
+    estimated_inner_radius = estimate_curve_inner_radius(request)
     ratio_desc = _describe_ratio_complexity(metrics.ratio)
     offset_desc = describe_offset_tendency(metrics.offset_factor, request.curve_type)
     density_notes = _build_density_notes(metrics, density_label)
@@ -191,4 +213,5 @@ def describe_curve(request: CircularSpiroRequest) -> None:
     print(f'\n  Perceived symmetry while rendering: {symmetry_feel}')
     print(f'\n  Visual density estimate: {density_label}')
     print(f'  Estimated footprint radius: ~{round(estimated_extent_radius)} (larger curves can appear less dense)')
+    print(f'  Estimated inner empty radius: ~{round(estimated_inner_radius)} (larger hole can increase perceived density)')
     print(f'    Notes: {density_notes}\n')

@@ -83,12 +83,12 @@ def random_pen_offset(
 ) -> int:
     prev_d = int(prev.pen_distance) if prev else None
 
-    max_factor = 1.6
-
-    if constraint is RandomConstraintMode.WILD:
-        max_factor *= 1.5
-
     base_min = 1
-    base_max = int(rolling_radius * max_factor)
+    if constraint is RandomConstraintMode.PHYSICAL:
+        base_max = max(1, int(rolling_radius))
+    elif constraint is RandomConstraintMode.EXTENDED:
+        base_max = int(rolling_radius * 1.6)
+    else:
+        base_max = int(rolling_radius * 1.6 * 1.5)
 
     return evolve_value(prev_d, base_min, base_max, evolution)
