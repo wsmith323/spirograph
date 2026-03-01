@@ -198,25 +198,16 @@ def describe_curve(request: CircularSpiroRequest) -> None:
     density_label = classify_density(visual_density_score)
     estimated_extent_radius = estimate_curve_extent_radius(request)
     estimated_inner_radius = estimate_curve_inner_radius(request)
-    ratio_desc = _describe_ratio_complexity(metrics.ratio)
-    offset_desc = describe_offset_tendency(metrics.offset_factor, request.curve_type)
     density_notes = _build_density_notes(metrics, density_label)
 
     print('\nCurve analysis:')
-    print(f'  Curve type: {_describe_curve_type(request.curve_type)}')
-
-    print(f'\n  Radius ratio R/r: {metrics.ratio:.3f} ({ratio_desc})')
-    print(f'  Offset factor d/r: {metrics.offset_factor:.3f} ({offset_desc})')
-
     print(
-        '\n  Closure repeats: '
-        f'\n    laps~{metrics.laps_to_close}'
-        f'\n    spins~{metrics.spins_to_close} '
-        f'\n    closure structure: {closure_structure}'
+        f'  Closure: laps~{metrics.laps_to_close} '
+        f'spins~{metrics.spins_to_close} ({closure_structure})'
     )
-
-    print(f'\n  Perceived symmetry while rendering: {symmetry_feel}')
-    print(f'\n  Visual density estimate: {density_label}')
-    print(f'  Estimated footprint radius: ~{round(estimated_extent_radius)} (larger curves can appear less dense)')
-    print(f'  Estimated inner empty radius: ~{round(estimated_inner_radius)} (larger hole can increase perceived density)')
-    print(f'    Notes: {density_notes}\n')
+    print(f'  Perceived symmetry while rendering: {symmetry_feel}')
+    print(
+        f'  Visual density: {density_label} '
+        f'(footprint~{round(estimated_extent_radius)}, inner~{round(estimated_inner_radius)})'
+    )
+    print(f'  Notes: {density_notes}\n')

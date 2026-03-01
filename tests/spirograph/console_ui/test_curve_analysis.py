@@ -401,12 +401,16 @@ def test_describe_curve_output_contains_new_labels_and_no_approx_lobes(
 
     assert 'Curve analysis:' in output
     assert 'Curve guidance:' not in output
-    assert 'Closure repeats' in output
+    assert 'Closure: laps~' in output
     assert 'Perceived symmetry while rendering' in output
-    assert 'Visual density estimate' in output
-    assert 'Estimated footprint radius' in output
-    assert 'Estimated inner empty radius' in output
+    assert 'Visual density:' in output
+    assert '(footprint~' in output
+    assert 'inner~' in output
     assert 'Notes:' in output
+    assert 'Radius ratio R/r' not in output
+    assert 'Offset factor d/r' not in output
+    assert 'Estimated footprint radius' not in output
+    assert 'Estimated inner empty radius' not in output
     assert 'Interpretation:' not in output
     assert 'Symmetry feel' not in output
     assert 'approx lobes' not in output

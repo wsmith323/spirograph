@@ -82,17 +82,13 @@ def prompt_color_value(current_color: Color) -> Color:
 
 
 def print_selected_parameters(request: CircularSpiroRequest, session: ConsoleUiSessionState) -> None:
+    color_summary = format_color_summary(session)
     print(
-        f"""
-Selected parameters:
-Fixed Circle Radius (R): {int(request.fixed_radius)}
-Rolling Circle Radius (r): {int(request.rolling_radius)}
-Pen Offset (d): {int(request.pen_distance)}
-Curve Type: {request.curve_type.value}
-Color Mode: {session.color_mode.value}
-Color: {session.color.as_hex}
-Line Width: {session.line_width}
-    """
+        '\nSelected parameters:\n'
+        f'  R={int(request.fixed_radius)} r={int(request.rolling_radius)} '
+        f'd={int(request.pen_distance)} type={request.curve_type.value}\n'
+        f'  color={color_summary} base={session.color.as_hex} '
+        f'width={session.line_width} speed={session.drawing_speed}\n'
     )
 
 
@@ -142,22 +138,17 @@ def format_color_summary(session: ConsoleUiSessionState) -> str:
 
 
 def print_prompt_status(session: ConsoleUiSessionState) -> None:
-    last_curve_status = 'yes' if session.last_request is not None else 'no'
     print(
         ' | '.join(
             (
-                f'curve={session.curve_type.value}',
-                f'rand={session.random_constraint_mode.value}/{session.random_evolution_mode.value}',
+                f'session: rand={session.random_constraint_mode.value}/{session.random_evolution_mode.value}',
                 (
                     'locks='
                     f'R:{format_lock_value(session.locked_fixed_radius)} '
                     f'r:{format_lock_value(session.locked_rolling_radius)} '
                     f'd:{format_lock_value(session.locked_pen_distance)}'
                 ),
-                f'color={format_color_summary(session)}',
-                f'width={session.line_width}',
-                f'speed={session.drawing_speed}',
-                f'last_curve={last_curve_status}',
+                f'draw=width:{session.line_width},speed:{session.drawing_speed}',
             )
         )
     )
@@ -407,8 +398,6 @@ def print_render_preview(request: CircularSpiroRequest, session: ConsoleUiSessio
     print(
         '\nRender preview: '
         f'steps={request.steps}, '
-        f'laps~{laps_to_close}, '
-        f'spins~{spins_to_close}, '
         f'color={session.color_mode.value}, '
         f'interval={interval}'
     )
